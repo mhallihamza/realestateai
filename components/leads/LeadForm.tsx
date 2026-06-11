@@ -23,6 +23,7 @@ const defaultForm = {
   locationPreference: '',
   notes: '',
   status: 'New',
+  aiAgentActive: true,
 }
 
 export default function LeadForm({ lead, onSuccess, onCancel }: LeadFormProps) {
@@ -37,10 +38,11 @@ export default function LeadForm({ lead, onSuccess, onCancel }: LeadFormProps) {
     locationPreference: lead?.locationPreference || defaultForm.locationPreference,
     notes: lead?.notes || defaultForm.notes,
     status: lead?.status || defaultForm.status,
+    aiAgentActive: lead?.aiAgentActive !== undefined ? lead.aiAgentActive : defaultForm.aiAgentActive,
   })
   const [loading, setLoading] = useState(false)
 
-  function update(field: string, value: string) {
+  function update(field: string, value: string | boolean) {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
@@ -50,18 +52,24 @@ export default function LeadForm({ lead, onSuccess, onCancel }: LeadFormProps) {
 
     try {
       const isEdit = !!lead?.id
+      
+      const payload = {
+        ...form,
+        humanTookOver: !form.aiAgentActive
+      }
+
       const res = await fetch(isEdit ? `/api/leads/${lead.id}` : '/api/leads', {
         method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) {
         const data = await res.json()
-        throw new Error(data.error || 'Failed to save lead')
+        throw new Error(data.error || 'Failed to save lead profile changes')
       }
 
-      toast.success(isEdit ? 'Lead updated!' : 'Lead added!')
+      toast.success(isEdit ? 'Lead updated successfully!' : 'Lead added successfully!')
       router.refresh()
       onSuccess?.()
     } catch (err: unknown) {
@@ -76,6 +84,8 @@ export default function LeadForm({ lead, onSuccess, onCancel }: LeadFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* The extra top toggle switch block has been removed from here */}
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className={labelClass}>Full Name *</label>

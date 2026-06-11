@@ -22,17 +22,21 @@ export async function POST(req: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 12)
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        agencyName,
-        subscriptions: {
-          create: { plan: 'free', status: 'active' },
-        },
-      },
-    })
+    // Replace your prisma.user.create block with this:
+const user = await prisma.user.create({
+  data: {
+    name,
+    email,
+    password: hashedPassword,
+    agencyName: "", // Keeps this safely initialized as an empty string
+    workspaces: {
+      create: {
+        workspaceId: "cmq8tq6mo000013q2w6isee1w",
+        role: "OWNER" 
+      }
+    }
+  }
+})
 
     return NextResponse.json({ success: true, userId: user.id }, { status: 201 })
   } catch (error) {

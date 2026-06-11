@@ -1,40 +1,43 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { MessageSquare, User, DollarSign, MapPin, Calendar, ShieldAlert } from 'lucide-react'
-
-interface Message {
-  id: string
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  sentAt: string
-}
-
-interface Conversation {
-  id: string
-  channel: string
-  messages: Message[]
-}
-
-interface Lead {
-  id: string
-  name: string
-  email: string
-  phone: string | null
-  status: string
-  qualificationStage: string
-  budget: string | null
-  locationPreference: string | null
-  timeline: string | null
-  urgency: string | null
-  createdAt: string
-  conversations: Conversation[]
-}
+import { MessageSquare, DollarSign, MapPin, Calendar, ShieldAlert } from 'lucide-react'
+// Official master schema source
+import type { Lead, Conversation, Message } from '@/types'
 
 export default function DashboardSplitView() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
+
+  const toggleAiAgent = async (leadId: string, currentAiStatus: boolean) => {
+    if (!selectedLead) return
+
+    const nextAiStatus = !currentAiStatus
+
+    // Optimistically update local UI states simultaneously 
+    setSelectedLead({
+      ...selectedLead,
+      aiAgentActive: nextAiStatus,
+      humanTookOver: !nextAiStatus,
+    })
+    setLeads(leads.map(l => l.id === leadId ? { ...l, aiAgentActive: nextAiStatus, humanTookOver: !nextAiStatus } : l))
+
+    try {
+      const res = await fetch('/api/leads/handoff', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId, aiAgentActive: nextAiStatus }),
+      })
+      
+      if (!res.ok) throw new Error('Failed to update control stream')
+    } catch (err) {
+      console.error('Error syncing handoff change:', err)
+      // Revert states perfectly on runtime communication failures
+      setSelectedLead({ ...selectedLead, aiAgentActive: currentAiStatus, humanTookOver: !currentAiStatus })
+      setLeads(leads.map(l => l.id === leadId ? { ...l, aiAgentActive: currentAiStatus, humanTookOver: !currentAiStatus } : l))
+    }
+  }
 
   useEffect(() => {
     async function loadDashboardData() {
@@ -104,7 +107,7 @@ export default function DashboardSplitView() {
               </span>
               {lead.budget && (
                 <span className="px-2 py-0.5 text-[10px] rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
-                  MAD {lead.budget}
+                  {lead.budget}
                 </span>
               )}
               {lead.locationPreference && (
@@ -162,12 +165,45 @@ export default function DashboardSplitView() {
                   <div className="p-2 bg-rose-50 rounded-lg text-rose-600"><ShieldAlert className="w-4 h-4" /></div>
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 block uppercase">Urgency</span>
-                    <span className={`text-xs font-bold ${selectedLead.urgency === 'high' ? 'text-rose-600' : 'text-amber-600'}`}>
+                    <span className={`text-xs font-bold ${selectedLead.urgency === 'immediate' ? 'text-rose-600' : 'text-amber-600'}`}>
                       {selectedLead.urgency || 'Evaluating...'}
                     </span>
                   </div>
                 </div>
               </div>
+
+              {/* CLEAN INTERACTIVE BANNER HUB (Single-Source Status Expressions) */}
+              <div className={`mt-4 p-3 rounded-xl border flex items-center justify-between transition-all duration-200 ${
+                selectedLead.aiAgentActive 
+                  ? 'bg-emerald-50/60 border-emerald-200' 
+                  : 'bg-amber-50/60 border-amber-200'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${selectedLead.aiAgentActive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                  <div>
+                    <p className="text-xs font-bold text-gray-800">
+                      {selectedLead.aiAgentActive ? 'AI Agent Copilot Active' : 'AI Automation Paused'}
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      {selectedLead.aiAgentActive 
+                        ? 'System automation is currently analyzing webhooks and drafting messages.' 
+                        : 'Human operator has taken full control. No auto-responses will fire.'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => toggleAiAgent(selectedLead.id, selectedLead.aiAgentActive)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-all ${
+                    selectedLead.aiAgentActive
+                      ? 'bg-amber-600 text-white hover:bg-amber-700 shadow-sm'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm'
+                  }`}
+                >
+                  {selectedLead.aiAgentActive ? 'Pause AI Agent' : 'Resume AI Agent'}
+                </button>
+              </div>
+
             </div>
 
             {/* Conversation Messages Box */}
