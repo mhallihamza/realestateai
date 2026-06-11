@@ -10,15 +10,15 @@ datasource db {
 // ─── MULTI-TENANT WORKSPACE ──────────────────────────────────────────────────
 
 model Workspace {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
-  slug        String   @unique
+  slug        String    @unique
   logoUrl     String?
-  timezone    String   @default("UTC")
-  plan        String   @default("free")
+  timezone    String    @default("UTC")
+  plan        String    @default("free") // free, starter, pro, enterprise
   trialEndsAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   members       WorkspaceMember[]
   leads         Lead[]
@@ -39,7 +39,7 @@ model WorkspaceMember {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   userId      String
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role        String    @default("agent")
+  role        String    @default("agent") // owner, admin, agent, viewer
   joinedAt    DateTime  @default(now())
 
   @@unique([workspaceId, userId])
@@ -48,18 +48,18 @@ model WorkspaceMember {
 // ─── USER ────────────────────────────────────────────────────────────────────
 
 model User {
-  id           String   @id @default(cuid())
-  name         String?
-  email        String   @unique
-  password     String
-  agencyName   String?
-  writingTone  String   @default("professional")
-  avatarUrl    String?
-  phone        String?
-  notifyEmail  Boolean  @default(true)
-  notifySMS    Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String   @id @default(cuid())
+  name        String?
+  email       String   @unique
+  password    String
+  agencyName  String?
+  writingTone String   @default("professional") // professional, friendly, casual
+  avatarUrl   String?
+  phone       String?
+  notifyEmail Boolean  @default(true)
+  notifySMS   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   workspaces WorkspaceMember[]
   leads      Lead[]
@@ -74,13 +74,11 @@ model Lead {
   workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   userId             String
   user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   name               String
   email              String
   phone              String?
-  source             String    @default("Other")
-  channel            String    @default("email")
-
+  source             String    @default("Other") // Facebook Ads, Website, WhatsApp, etc.
+  channel            String    @default("email") // email, sms, whatsapp
   propertyType       String?
   budget             String?
   budgetMin          Float?
@@ -89,36 +87,31 @@ model Lead {
   bedroomsNeeded     Int?
   timeline           String?
   notes              String?
-
-  status             String    @default("New")
+  status             String    @default("New") // New, Active, Follow-up, Hot, Warm, Cold, Closed, Disqualified
   score              Int       @default(0)
-  scoreBreakdown     String?
-  intent             String?
-  urgency            String?
-  qualificationStage String    @default("unqualified")
-
+  scoreBreakdown     String?   // Stringified JSON tracking values
+  intent             String    @default("unknown") // buying, renting, investing, browsing, unknown
+  urgency            String    @default("unknown") // immediate, within_month, within_3months, unknown
+  qualificationStage String    @default("unqualified") // unqualified, contacted, qualifying, qualified
   aiAgentActive      Boolean   @default(true)
   aiPausedUntil      DateTime?
   humanTookOver      Boolean   @default(false)
-
   lastContactedAt    DateTime?
   nextFollowUpAt     DateTime?
   firstReplyAt       DateTime?
   responseTimeMs     Int?
-
   crmId              String?
   crmSource          String?
   externalId         String?
-
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  followUps         FollowUp[]
-  emailEvents       EmailEvent[]
-  conversations     Conversation[]
-  engagementEvents  EngagementEvent[]
-  handoffs          HumanHandoff[]
-  roiEvents         ROIEvent[]
+  followUps        FollowUp[]
+  emailEvents      EmailEvent[]
+  conversations    Conversation[]
+  engagementEvents EngagementEvent[]
+  handoffs         HumanHandoff[]
+  roiEvents        ROIEvent[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, score])
@@ -128,16 +121,16 @@ model Lead {
 // ─── CONVERSATION (multi-channel memory) ─────────────────────────────────────
 
 model Conversation {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   leadId      String
-  lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  channel     String    @default("email")
-  status      String    @default("active")
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  channel     String   @default("email")
+  status      String   @default("active") // active, paused, closed, handed_off
   summary     String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   messages Message[]
 }
@@ -146,14 +139,14 @@ model Message {
   id             String       @id @default(cuid())
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  role           String
+  role           String       // user, assistant, system
   content        String
   channel        String       @default("email")
   sentAt         DateTime     @default(now())
   deliveredAt    DateTime?
   readAt         DateTime?
   externalId     String?
-  metadata       String?
+  metadata       String?      // Stringified JSON payload
 
   @@index([conversationId, sentAt])
 }
@@ -161,33 +154,27 @@ model Message {
 // ─── AI AGENT CONFIG ──────────────────────────────────────────────────────────
 
 model AgentConfig {
-  id                  String    @id @default(cuid())
-  workspaceId         String    @unique
+  id                  String   @id @default(cuid())
+  workspaceId         String   @unique
   workspace           Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
-  agentName           String    @default("AI Assistant")
-  tone                String    @default("professional")
-  language            String    @default("en")
-  replyDelaySeconds   Int       @default(5)
-  maxDailyMessages    Int       @default(3)
+  agentName           String   @default("AI Assistant")
+  tone                String   @default("professional") // professional, friendly, casual
+  language            String   @default("en")
+  replyDelaySeconds   Int      @default(5)
+  maxDailyMessages    Int      @default(3)
   qualifyingQuestions String?
-
-  hotScoreThreshold   Int       @default(60)
-  warmScoreThreshold  Int       @default(30)
-  autoHandoffScore    Int       @default(80)
-
-  enableEmail         Boolean   @default(true)
-  enableSMS           Boolean   @default(false)
-  enableWhatsApp      Boolean   @default(false)
-
-  followUpHours24     Boolean   @default(true)
-  followUpHours72     Boolean   @default(true)
-  reactivateDays30    Boolean   @default(true)
-
+  hotScoreThreshold   Int      @default(60)
+  warmScoreThreshold  Int      @default(30)
+  autoHandoffScore    Int      @default(80)
+  enableEmail         Boolean  @default(true)
+  enableSMS           Boolean  @default(false)
+  enableWhatsApp      Boolean  @default(false)
+  followUpHours24     Boolean  @default(true)
+  followUpHours72     Boolean  @default(true)
+  reactivateDays30    Boolean  @default(true)
   systemPromptOverride String?
-
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 // ─── FOLLOW-UP SEQUENCE ───────────────────────────────────────────────────────
@@ -204,7 +191,7 @@ model FollowUp {
   channel        String    @default("email")
   scheduledAt    DateTime?
   sentAt         DateTime?
-  status         String    @default("draft")
+  status         String    @default("draft") // draft, scheduled, sent, opened, replied, failed
   approved       Boolean   @default(false)
   sendAfterDays  Int       @default(0)
   aiGenerated    Boolean   @default(true)
@@ -222,9 +209,9 @@ model EmailEvent {
   lead          Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
   followUpId    String?
   followUp      FollowUp? @relation(fields: [followUpId], references: [id])
-  type          String
+  type          String    // opened, clicked, replied, sent, bounced, unsubscribed
   trackingToken String?   @unique
-  metadata      String?
+  metadata      String?   // Stringified JSON metadata payload
   createdAt     DateTime  @default(now())
 }
 
@@ -234,10 +221,10 @@ model EngagementEvent {
   id        String   @id @default(cuid())
   leadId    String
   lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  type      String
+  type      String   // email_opened, link_clicked, whatsapp_replied, etc.
   channel   String   @default("email")
   value     Int      @default(0)
-  metadata  String?
+  metadata  String?  // Stringified JSON metadata payload
   createdAt DateTime @default(now())
 
   @@index([leadId, type])
@@ -249,9 +236,9 @@ model JobQueue {
   id          String    @id @default(cuid())
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  type        String
-  payload     String
-  status      String    @default("pending")
+  type        String    // ai_reply, follow_up, score_update, etc.
+  payload     String    // Stringified JSON tracking parameters
+  status      String    @default("pending") // pending, running, completed, failed, cancelled
   priority    Int       @default(5)
   attempts    Int       @default(0)
   maxAttempts Int       @default(3)
@@ -272,9 +259,9 @@ model WebhookEvent {
   id          String    @id @default(cuid())
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  source      String
+  source      String    // facebook, whatsapp, webform
   eventType   String
-  payload     String
+  payload     String    // Stringified raw incoming body content
   processed   Boolean   @default(false)
   leadId      String?
   error       String?
@@ -299,7 +286,7 @@ model HumanHandoff {
   budget      String?
   objections  String?
   recommended String?
-  status      String    @default("pending")
+  status      String    @default("pending") // pending, notified, accepted, resolved
   notifiedAt  DateTime?
   acceptedAt  DateTime?
   resolvedAt  DateTime?
@@ -312,17 +299,17 @@ model HumanHandoff {
 // ─── INTEGRATIONS ─────────────────────────────────────────────────────────────
 
 model Integration {
-  id          String    @id @default(cuid())
-  workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  provider    String
-  accessToken String?
+  id           String    @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  provider     String    // hubspot, salesforce, facebook, whatsapp, etc.
+  accessToken  String?
   refreshToken String?
-  expiresAt   DateTime?
-  config      String?
-  status      String    @default("active")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  expiresAt    DateTime?
+  config       String?   // Stringified JSON structure layout config
+  status       String    @default("active") // active, error, disconnected
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@unique([workspaceId, provider])
 }
@@ -336,8 +323,8 @@ model Subscription {
   stripeCustomerId     String?   @unique
   stripeSubscriptionId String?   @unique
   stripePriceId        String?
-  plan                 String    @default("free")
-  status               String    @default("trialing")
+  plan                 String    @default("free") // free, starter, pro, enterprise
+  status               String    @default("trialing") // trialing, active, past_due, cancelled
   startsAt             DateTime  @default(now())
   endsAt               DateTime?
   trialEndsAt          DateTime?
@@ -355,17 +342,17 @@ model Subscription {
 // ─── ROI EVENTS (revenue attribution) ────────────────────────────────────────
 
 model ROIEvent {
-  id          String    @id @default(cuid())
-  workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  leadId      String
-  lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  type        String
-  value       Float?
-  channel     String?
-  aiInfluenced Boolean  @default(false)
-  metadata    String?
-  createdAt   DateTime  @default(now())
+  id           String    @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leadId       String
+  lead         Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type         String    // viewing_booked, deal_closed, lead_reactivated
+  value        Float?
+  channel      String?
+  aiInfluenced Boolean   @default(false)
+  metadata     String?   // Stringified JSON structural tracker
+  createdAt    DateTime  @default(now())
 
   @@index([workspaceId, type])
 }

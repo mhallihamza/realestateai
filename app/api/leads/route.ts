@@ -2,12 +2,16 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { LeadStatus, LeadSource, Channel, QualificationStage } from '@/types'
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const userId = (session.user as { id: string }).id
+  // Securely grab the workspaceId injected by our updated auth callbacks
+  const workspaceId = (session.user as any).workspaceId
+  const userId = (session.user as any).id
+  
   const { searchParams } = new URL(req.url)
 
   const page = parseInt(searchParams.get('page') || '1')
@@ -17,9 +21,10 @@ export async function GET(req: Request) {
 
   const skip = (page - 1) * limit
 
+  // Multi-tenant check: Querying strictly through workspace isolation
   const where = {
-    userId,
-    ...(status ? { status } : {}),
+    workspaceId,
+    ...(status ? { status: status as LeadStatus } : {}),
     ...(search ? {
       OR: [
         { name: { contains: search } },
@@ -45,7 +50,8 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const userId = (session.user as { id: string }).id
+  const workspaceId = (session.user as any).workspaceId
+  const userId = (session.user as any).id
 
   try {
     const body = await req.json()
@@ -55,18 +61,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Name and email are required' }, { status: 400 })
     }
 
+    // Default structural parameters matching your index.ts types perfectly
+    const finalSource = (source || 'Other') as LeadSource
+    const finalStatus = (status || 'New') as LeadStatus
+    const defaultChannel: Channel = 'email'
+    const defaultStage: QualificationStage = 'unqualified'
+
     const lead = await prisma.lead.create({
       data: {
+        workspaceId,
         userId,
         name,
         email,
         phone: phone || null,
-        source: source || 'Other',
+        source: finalSource,
+        channel: defaultChannel,
         propertyType: propertyType || null,
         budget: budget || null,
         locationPreference: locationPreference || null,
         notes: notes || null,
-        status: status || 'New',
+        status: finalStatus,
+        qualificationStage: defaultStage,
+        aiAgentActive: true,
+        humanTookOver: false,
+        score: 0,
       },
     })
 
