@@ -1,4 +1,4 @@
-import type { EmailEvent, EngagementEvent, Lead, ScoreBreakdown } from '@/types'
+import type { EmailEvent, EngagementEvent, Lead, ScoreBreakdown, HotDetectionResult } from '@/types'
 
 const EMAIL_SCORES: Record<string, number> = {
   opened: 10,
@@ -14,7 +14,10 @@ const ENGAGEMENT_SCORES: Record<string, number> = {
   email_clicked: 20,
   email_replied: 35,
   whatsapp_replied: 40,
+  whatsapp_delivered: 5,
+  whatsapp_read: 15,
   sms_replied: 30,
+  sms_delivered: 5,
   link_clicked: 15,
   viewed_property: 25,
   booked_viewing: 50,
@@ -65,12 +68,12 @@ export function calculateLeadScoreV2(
   else if (lead.urgency === 'within_month') urgencySignal = 15
   else if (lead.urgency === 'within_3months') urgencySignal = 10
 
-  let budgetMatch = 0
-  if (lead.budgetMin && lead.budgetMax) budgetMatch = 15
-  else if (lead.budget) budgetMatch = 8
+  let budgetMatchScore = 0
+  if (lead.budgetMin && lead.budgetMax) budgetMatchScore = 15
+  else if (lead.budget) budgetMatchScore = 8
 
   const total = Math.min(
-    emailEngagement + channelActivity + replyDepth + qualityScore + urgencySignal + budgetMatch,
+    emailEngagement + channelActivity + replyDepth + qualityScore + urgencySignal + budgetMatchScore,
     100
   )
 
@@ -79,7 +82,7 @@ export function calculateLeadScoreV2(
     replyDepth,
     conversationQuality: qualityScore,
     urgencySignal,
-    budgetMatch,
+    budgetMatch: budgetMatchScore,
     channelActivity,
     total,
   }
@@ -87,6 +90,64 @@ export function calculateLeadScoreV2(
 
 export function isHotLead(score: number, threshold = 60): boolean {
   return score >= threshold
+}
+
+export function detectHotLead(
+  score: number,
+  lead: Partial<Lead>,
+  engagementEvents: EngagementEvent[],
+  config?: { hotScoreThreshold?: number }
+): HotDetectionResult {
+  const threshold = config?.hotScoreThreshold || 60
+
+  const scoreSignal = score >= threshold
+
+  // Check if lead replied within last 24 hours
+  const lastReply = engagementEvents.find(e =>
+    ['whatsapp_replied', 'sms_replied', 'email_replied'].includes(e.type)
+  )
+  const replySignal = lastReply
+    ? (Date.now() - new Date(lastReply.createdAt).getTime()) < 24 * 60 * 60 * 1000
+    : false
+
+  const intentSignal = lead.intent === 'buying' || lead.intent === 'investing'
+
+  const budgetSignal = !!(lead.budget || (lead.budgetMin && lead.budgetMax))
+
+  const urgencySignal = lead.urgency === 'immediate' || lead.urgency === 'within_month'
+
+  // Check if lead engaged on multiple channels
+  const channels = new Set(engagementEvents.map(e => e.channel))
+  const engagementSignal = channels.size >= 2
+
+  // Sentiment signal (positive sentiment if score > 0 and has replied)
+  const sentimentSignal = score > 20 && replyCount(engagementEvents) >= 1
+
+  const signals = { scoreSignal, replySignal, intentSignal, budgetSignal, urgencySignal, engagementSignal, sentimentSignal }
+  const signalCount = Object.values(signals).filter(Boolean).length
+  const isHot = signalCount >= 4
+
+  const reasons: string[] = []
+  if (scoreSignal) reasons.push(`Score ${score} >= ${threshold}`)
+  if (replySignal) reasons.push('Replied within 24h')
+  if (intentSignal) reasons.push(`Intent: ${lead.intent}`)
+  if (budgetSignal) reasons.push('Budget specified')
+  if (urgencySignal) reasons.push(`Urgency: ${lead.urgency}`)
+  if (engagementSignal) reasons.push(`Multi-channel: ${channels.size} channels`)
+  if (sentimentSignal) reasons.push('Positive engagement')
+
+  return {
+    isHot,
+    confidence: signalCount / 7,
+    signals,
+    triggerReason: isHot ? `HOT: ${reasons.join(', ')}` : `Not hot: ${Math.round(signalCount / 7 * 100)}% confidence`,
+  }
+}
+
+function replyCount(events: EngagementEvent[]): number {
+  return events.filter(e =>
+    ['whatsapp_replied', 'sms_replied', 'email_replied'].includes(e.type)
+  ).length
 }
 
 export function getScoreLabel(score: number): string {

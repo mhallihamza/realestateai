@@ -10,14 +10,15 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const userId = (session.user as { id: string }).id
+  const userId = (session.user as any).id
+  const workspaceId = (session.user as any).workspaceId
 
   try {
     const body = await req.json()
     const { leadId, tone = 'professional' } = body
 
     const lead = await prisma.lead.findFirst({
-      where: { id: leadId, userId },
+      where: { id: leadId, workspaceId },
       include: { user: { select: { name: true, writingTone: true } } },
     })
 
@@ -53,6 +54,7 @@ export async function POST(req: Request) {
 
     const followUps = await prisma.followUp.createMany({
       data: messages.map((msg) => ({
+        workspaceId,
         leadId,
         sequenceNumber: msg.sequenceNumber,
         subject: msg.subject,

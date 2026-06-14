@@ -17,8 +17,17 @@ model Workspace {
   timezone    String    @default("UTC")
   plan        String    @default("free") // free, starter, pro, enterprise
   trialEndsAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+
+  // NEW FIELDS
+  defaultChannel         String  @default("whatsapp")
+  aiReplyDelayEnabled    Boolean @default(true)
+  businessHoursStart     String?
+  businessHoursEnd       String?
+  maxConcurrentAIReplies Int     @default(10)
+  webhookSecret          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   members       WorkspaceMember[]
   leads         Lead[]
@@ -31,6 +40,12 @@ model Workspace {
   webhookEvents WebhookEvent[]
   handoffs      HumanHandoff[]
   roiEvents     ROIEvent[]
+  memoryEntries MemoryEntry[]
+  aiDecisionLogs AIDecisionLog[]
+  properties    Property[]
+  appointments  Appointment[]
+  notifications Notification[]
+  whatsappMessages WhatsAppMessage[]
 }
 
 model WorkspaceMember {
@@ -58,12 +73,17 @@ model User {
   phone       String?
   notifyEmail Boolean  @default(true)
   notifySMS   Boolean  @default(false)
+  emailVerified        DateTime?
+  verificationToken    String?   @unique
+  resetPasswordToken   String?   @unique
+  resetPasswordExpires DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   workspaces WorkspaceMember[]
   leads      Lead[]
   handoffs   HumanHandoff[]
+  notifications Notification[]
 }
 
 // ─── LEAD ────────────────────────────────────────────────────────────────────
@@ -103,8 +123,20 @@ model Lead {
   crmId              String?
   crmSource          String?
   externalId         String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+
+  // NEW FIELDS
+  lastActivityAt       DateTime?
+  sentimentScore       Float?
+  aiAnalysisSummary    String?
+  preferredContactTime String?
+  timezone             String?
+  propertyMatchIds     String?
+  dealValue            Float?
+  closeProbability     Float?
+  tags                 String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   followUps        FollowUp[]
   emailEvents      EmailEvent[]
@@ -112,12 +144,18 @@ model Lead {
   engagementEvents EngagementEvent[]
   handoffs         HumanHandoff[]
   roiEvents        ROIEvent[]
+  memoryEntries    MemoryEntry[]
+  appointments     Appointment[]
+  notifications    Notification[]
+  whatsappMessages WhatsAppMessage[]
+  aiDecisionLogs   AIDecisionLog[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, score])
   @@index([workspaceId, aiAgentActive])
+  @@index([workspaceId, email])
+  @@index([workspaceId, lastActivityAt])
 }
-
 // ─── CONVERSATION (multi-channel memory) ─────────────────────────────────────
 
 model Conversation {
@@ -133,6 +171,8 @@ model Conversation {
   updatedAt   DateTime @updatedAt
 
   messages Message[]
+
+  @@index([leadId, channel, status])
 }
 
 model Message {
@@ -249,8 +289,9 @@ model JobQueue {
   error       String?
   createdAt   DateTime  @default(now())
 
-  @@index([status, runAt])
+  @@index([status, priority, runAt])
   @@index([workspaceId, status])
+  @@index([workspaceId, type, createdAt])
 }
 
 // ─── WEBHOOK EVENTS (inbound lead sources) ────────────────────────────────────
@@ -355,4 +396,151 @@ model ROIEvent {
   createdAt    DateTime  @default(now())
 
   @@index([workspaceId, type])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NEW MODELS - AI Sales Agent Platform Upgrade
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── MEMORY ENTRY (structured per-lead memory) ────────────────────────────────
+
+model MemoryEntry {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leadId         String
+  lead           Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  conversationId String?
+  type           String    // fact, preference, objection, intent, timeline
+  key            String
+  value          String
+  confidence     Float     @default(1.0)
+  source         String    // ai_extracted, manual, system
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([leadId, type])
+  @@index([workspaceId, type])
+}
+
+// ─── AI DECISION LOG (audit trail) ────────────────────────────────────────────
+
+model AIDecisionLog {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  workspace      Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leadId         String
+  lead           Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  action         String     // reply, handoff, followup, etc.
+  trigger        String
+  decisionType   String     // ai_generated, rule_based, hybrid
+  inputContext   String?    // JSON snapshot
+  outputDecision String?    // JSON snapshot
+  latencyMs      Int?
+  confidence     Float?
+  humanReviewed  Boolean    @default(false)
+  createdAt      DateTime   @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([leadId])
+}
+
+// ─── PROPERTY LISTINGS (for future matching) ──────────────────────────────────
+
+model Property {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  externalId    String?
+  title         String
+  description   String?
+  price         Float
+  priceMin      Float?
+  priceMax      Float?
+  propertyType  String   // apartment, house, condo, land, commercial
+  bedrooms      Int?
+  bathrooms     Int?
+  squareFootage Float?
+  location      String
+  city          String?
+  state         String?
+  zipCode       String?
+  status        String   // available, pending, sold, rented
+  images        String?  // JSON array of URLs
+  features      String?  // JSON array
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  appointments Appointment[]
+
+  @@index([workspaceId, status, price])
+  @@index([workspaceId, propertyType])
+}
+
+// ─── APPOINTMENT / VIEWING ────────────────────────────────────────────────────
+
+model Appointment {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leadId      String
+  lead        Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  propertyId  String?
+  Property    Property?  @relation(fields: [propertyId], references: [id])
+  scheduledAt DateTime
+  durationMin Int        @default(30)
+  status      String     // scheduled, confirmed, completed, cancelled, no_show
+  channel     String     // whatsapp, email, phone, in_person
+  notes       String?
+  aiBooked    Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([workspaceId, scheduledAt])
+  @@index([leadId])
+}
+
+// ─── NOTIFICATION LOG (agent alerts) ──────────────────────────────────────────
+
+model Notification {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id])
+  leadId      String?
+  lead        Lead?     @relation(fields: [leadId], references: [id])
+  type        String    // hot_lead, handoff, score_alert, booking, system, lead_replied
+  title       String
+  message     String
+  channel     String    // in_app, email, sms, whatsapp
+  readAt      DateTime?
+  sentAt      DateTime?
+  metadata    String?   // JSON
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@index([workspaceId, type, createdAt])
+}
+
+// ─── WHATSAPP MESSAGE LOG ─────────────────────────────────────────────────────
+
+model WhatsAppMessage {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leadId         String
+  lead           Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  conversationId String?
+  direction      String    // outbound, inbound
+  body           String
+  mediaUrl       String?
+  status         String    // sent, delivered, read, failed
+  twilioSid      String?   @unique
+  price          Float?
+  sentAt         DateTime  @default(now())
+  deliveredAt    DateTime?
+  readAt         DateTime?
+
+  @@index([leadId, sentAt])
 }

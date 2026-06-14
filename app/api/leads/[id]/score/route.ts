@@ -5,18 +5,18 @@ import { prisma } from '@/lib/prisma'
 import { calculateLeadScore, isHotLead } from '@/lib/scoring'
 import type { EmailEvent } from '@/types'
 
-interface Params {
-  params: { id: string }
-}
-
-export async function POST(_req: Request, { params }: Params) {
+export async function POST(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const userId = (session.user as { id: string }).id
 
   const lead = await prisma.lead.findFirst({
-    where: { id: params.id, userId },
+    where: { id, userId },
     include: { emailEvents: true },
   })
 
@@ -26,7 +26,7 @@ export async function POST(_req: Request, { params }: Params) {
   const shouldBeHot = isHotLead(score)
 
   const updatedLead = await prisma.lead.update({
-    where: { id: params.id },
+    where: { id },
     data: {
       score,
       ...(shouldBeHot && lead.status !== 'Closed' ? { status: 'Hot' } : {}),

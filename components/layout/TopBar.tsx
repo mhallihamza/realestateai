@@ -1,12 +1,16 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { Bell } from 'lucide-react'
 import { useSession } from 'next-auth/react'
+import NotificationBell from '@/components/layout/NotificationBell'
 
 const titles: Record<string, string> = {
   '/dashboard': 'Dashboard',
   '/leads': 'Leads',
+  '/automation': 'Automation',
+  '/integrations': 'Integrations',
+  '/team': 'Team',
+  '/billing': 'Billing',
   '/settings': 'Settings',
 }
 
@@ -27,10 +31,7 @@ export default function TopBar() {
       <h1 className="text-xl font-semibold text-gray-900">{getTitle()}</h1>
 
       <div className="flex items-center gap-4">
-        <button className="relative p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-500 rounded-full" />
-        </button>
+        <NotificationBell />
 
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full gradient-brand flex items-center justify-center">

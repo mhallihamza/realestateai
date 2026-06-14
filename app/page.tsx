@@ -29,16 +29,16 @@ export default function LandingPage() {
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 bg-white/10 text-blue-200 text-sm font-medium px-4 py-2 rounded-full mb-8 border border-white/20">
               <Zap className="w-4 h-4" />
-              AI-Powered Real Estate CRM
+              AI Sales Agent for Real Estate
             </div>
             <h1 className="text-5xl md:text-6xl font-bold text-white leading-tight mb-6">
-              Turn Cold Leads Into{' '}
+              Turn More Leads Into{' '}
               <span className="text-blue-300">Property Viewings</span>
-              {' '}— Automatically
+              {' '}— 24/7
             </h1>
             <p className="text-xl text-blue-100 mb-10 leading-relaxed max-w-2xl">
-              AI-powered follow-up sequences for real estate agents. Never lose a lead again.
-              Generate personalized messages in seconds and close more deals.
+              An AI sales employee that captures leads, responds instantly, qualifies prospects,
+              and follows up automatically — so you close more deals.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Link href="/register" className="inline-flex items-center justify-center gap-2 bg-white text-blue-700 font-semibold px-8 py-4 rounded-xl hover:bg-blue-50 transition-all shadow-lg text-lg">
@@ -84,20 +84,20 @@ export default function LandingPage() {
             {[
               {
                 icon: <Zap className="w-7 h-7 text-blue-600" />,
-                title: 'AI-Powered Follow-Ups',
-                desc: 'Generate a complete 5-message personalized sequence for any lead in seconds. Human-sounding messages that actually get replies.',
+                title: 'AI Sales Agent',
+                desc: 'Responds to leads in seconds across email, SMS, and WhatsApp. Qualifies prospects and books viewings automatically.',
                 color: 'bg-blue-50',
               },
               {
                 icon: <TrendingUp className="w-7 h-7 text-green-600" />,
                 title: 'Smart Lead Scoring',
-                desc: 'Automatically detect hot leads based on email opens, clicks, and engagement. Get alerted before a lead goes cold.',
+                desc: 'Real-time scoring from opens, clicks, and replies. Get alerted when a lead goes hot — before they go cold.',
                 color: 'bg-green-50',
               },
               {
                 icon: <Mail className="w-7 h-7 text-purple-600" />,
-                title: 'Email Automation',
-                desc: 'Schedule and send emails automatically. Track opens, clicks, and replies. Know exactly who to call next.',
+                title: 'Autonomous Follow-Ups',
+                desc: 'AI-generated follow-up sequences at day 0, 2, 5, 10, and 21. Edit, approve, or regenerate any message.',
                 color: 'bg-purple-50',
               },
             ].map((f) => (
@@ -121,9 +121,9 @@ export default function LandingPage() {
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             {[
-              { step: '01', title: 'Add Your Leads', desc: 'Import leads from CSV or add them manually. Capture name, contact info, budget, and property preferences.' },
-              { step: '02', title: 'AI Generates Follow-Ups', desc: 'Click one button and get a personalized 5-message email sequence. Edit, approve, and schedule in minutes.' },
-              { step: '03', title: 'Close More Deals', desc: 'Track opens and engagement. Get notified when a lead is hot. Book property viewings automatically.' },
+              { step: '01', title: 'Capture Leads', desc: 'Import CSV, connect Facebook Lead Ads, or receive leads via webhook from your website forms.' },
+              { step: '02', title: 'AI Qualifies & Responds', desc: 'Your AI agent responds instantly, asks qualifying questions, and remembers every conversation.' },
+              { step: '03', title: 'Book Viewings & Close', desc: 'Hot leads get flagged. You take over when ready. AI handles the rest — 24/7.' },
             ].map((s) => (
               <div key={s.step} className="relative">
                 <div className="text-8xl font-black text-blue-100 leading-none mb-4">{s.step}</div>
@@ -167,15 +167,15 @@ export default function LandingPage() {
             <h2 className="text-4xl font-bold text-gray-900 mb-4">Simple, transparent pricing</h2>
             <p className="text-xl text-gray-600">Start free. Scale as you grow.</p>
           </div>
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             <div className="bg-white rounded-2xl p-8 card-shadow-lg border border-gray-200">
               <h3 className="text-2xl font-bold text-gray-900 mb-2">Starter</h3>
               <div className="flex items-baseline gap-1 mb-6">
-                <span className="text-5xl font-black text-gray-900">$29</span>
+                <span className="text-5xl font-black text-gray-900">$49</span>
                 <span className="text-gray-500">/month</span>
               </div>
               <ul className="space-y-3 mb-8">
-                {['Up to 100 leads', 'AI follow-up generation', 'Email tracking', 'CSV import', 'Hot lead alerts', 'Email support'].map((f) => (
+                {['500 leads/mo', 'Email + SMS', 'AI follow-up sequences', 'Hot lead alerts', '1 CRM integration'].map((f) => (
                   <li key={f} className="flex items-center gap-3">
                     <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
                     <span className="text-gray-700">{f}</span>
@@ -183,18 +183,18 @@ export default function LandingPage() {
                 ))}
               </ul>
               <Link href="/register" className="block text-center w-full border-2 border-blue-600 text-blue-600 font-semibold py-3 rounded-xl hover:bg-blue-50 transition-colors">
-                Get Started
+                Start Free Trial
               </Link>
             </div>
             <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-8 shadow-2xl relative overflow-hidden">
               <div className="absolute top-4 right-4 bg-yellow-400 text-yellow-900 text-xs font-bold px-3 py-1 rounded-full">POPULAR</div>
               <h3 className="text-2xl font-bold text-white mb-2">Pro</h3>
               <div className="flex items-baseline gap-1 mb-6">
-                <span className="text-5xl font-black text-white">$79</span>
+                <span className="text-5xl font-black text-white">$149</span>
                 <span className="text-blue-200">/month</span>
               </div>
               <ul className="space-y-3 mb-8">
-                {['Unlimited leads', 'Everything in Starter', 'Priority support', 'Advanced analytics', 'Team collaboration (coming soon)', 'WhatsApp integration (coming soon)'].map((f) => (
+                {['5,000 leads/mo', 'WhatsApp + SMS + Email', 'Autonomous AI agent', 'Human handoff', 'Advanced analytics'].map((f) => (
                   <li key={f} className="flex items-center gap-3">
                     <CheckCircle className="w-5 h-5 text-blue-200 flex-shrink-0" />
                     <span className="text-blue-100">{f}</span>
@@ -202,7 +202,25 @@ export default function LandingPage() {
                 ))}
               </ul>
               <Link href="/register" className="block text-center w-full bg-white text-blue-600 font-semibold py-3 rounded-xl hover:bg-blue-50 transition-colors">
-                Get Started
+                Start Free Trial
+              </Link>
+            </div>
+            <div className="bg-white rounded-2xl p-8 card-shadow-lg border border-gray-200">
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">Agency</h3>
+              <div className="flex items-baseline gap-1 mb-6">
+                <span className="text-5xl font-black text-gray-900">$499</span>
+                <span className="text-gray-500">/month</span>
+              </div>
+              <ul className="space-y-3 mb-8">
+                {['Unlimited leads', 'All channels + integrations', 'Team collaboration', 'Priority support', 'Custom AI training'].map((f) => (
+                  <li key={f} className="flex items-center gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+                    <span className="text-gray-700">{f}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link href="/register" className="block text-center w-full border-2 border-gray-300 text-gray-700 font-semibold py-3 rounded-xl hover:bg-gray-50 transition-colors">
+                Contact Sales
               </Link>
             </div>
           </div>

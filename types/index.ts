@@ -18,6 +18,8 @@ export type JobType =
   | 'reactivation'
   | 'crm_sync'
   | 'lead_ingest'
+  | 'memory_extraction'
+  | 'notification_dispatch'
 export type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 export type HandoffStatus = 'pending' | 'notified' | 'accepted' | 'resolved'
 export type EngagementEventType =
@@ -25,7 +27,10 @@ export type EngagementEventType =
   | 'email_clicked'
   | 'email_replied'
   | 'whatsapp_replied'
+  | 'whatsapp_delivered'
+  | 'whatsapp_read'
   | 'sms_replied'
+  | 'sms_delivered'
   | 'link_clicked'
   | 'viewed_property'
   | 'booked_viewing'
@@ -36,9 +41,14 @@ export type ROIEventType =
   | 'lead_reactivated'
   | 'response_time_improved'
   | 'upsell'
+  | 'ai_conversation_started'
+  | 'ai_qualified_lead'
 export type SubscriptionPlan = 'free' | 'starter' | 'pro' | 'enterprise'
 export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'cancelled' | 'expired'
 export type IntegrationProvider = 'hubspot' | 'salesforce' | 'followupboss' | 'facebook' | 'twilio' | 'stripe' | 'whatsapp'
+export type NotificationType = 'hot_lead' | 'handoff' | 'score_alert' | 'booking' | 'system' | 'lead_replied'
+export type AppointmentStatus = 'scheduled' | 'confirmed' | 'completed' | 'cancelled' | 'no_show'
+export type MemoryType = 'fact' | 'preference' | 'objection' | 'intent' | 'timeline'
 
 // ─── CORE MODELS ──────────────────────────────────────────────────────────────
 
@@ -50,6 +60,12 @@ export interface Workspace {
   timezone: string
   plan: SubscriptionPlan
   trialEndsAt?: Date | null
+  defaultChannel?: string
+  aiReplyDelayEnabled?: boolean
+  businessHoursStart?: string | null
+  businessHoursEnd?: string | null
+  maxConcurrentAIReplies?: number
+  webhookSecret?: string | null
   createdAt: Date
   updatedAt: Date
 }
@@ -67,6 +83,7 @@ export interface User {
   id: string
   name?: string | null
   email: string
+  password: string
   agencyName?: string | null
   writingTone: WritingTone
   avatarUrl?: string | null
@@ -110,6 +127,16 @@ export interface Lead {
   crmId?: string | null
   crmSource?: string | null
   externalId?: string | null
+  // NEW FIELDS
+  lastActivityAt?: Date | null
+  sentimentScore?: number | null
+  aiAnalysisSummary?: string | null
+  preferredContactTime?: string | null
+  timezone?: string | null
+  propertyMatchIds?: string | null
+  dealValue?: number | null
+  closeProbability?: number | null
+  tags?: string | null
   createdAt: Date
   updatedAt: Date
   followUps?: FollowUp[]
@@ -117,6 +144,8 @@ export interface Lead {
   conversations?: Conversation[]
   engagementEvents?: EngagementEvent[]
   handoffs?: HumanHandoff[]
+  memoryEntries?: MemoryEntry[]
+  appointments?: Appointment[]
 }
 
 export interface Conversation {
@@ -299,6 +328,107 @@ export interface ROIEvent {
   createdAt: Date
 }
 
+// ─── NEW MODELS ───────────────────────────────────────────────────────────────
+
+export interface MemoryEntry {
+  id: string
+  workspaceId: string
+  leadId: string
+  conversationId?: string | null
+  type: MemoryType
+  key: string
+  value: string
+  confidence: number
+  source: string // ai_extracted, manual, system
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface AIDecisionLog {
+  id: string
+  workspaceId: string
+  leadId: string
+  action: string
+  trigger: string
+  decisionType: string // ai_generated, rule_based, hybrid
+  inputContext?: string | null
+  outputDecision?: string | null
+  latencyMs?: number | null
+  confidence?: number | null
+  humanReviewed: boolean
+  createdAt: Date
+}
+
+export interface Property {
+  id: string
+  workspaceId: string
+  externalId?: string | null
+  title: string
+  description?: string | null
+  price: number
+  priceMin?: number | null
+  priceMax?: number | null
+  propertyType: string
+  bedrooms?: number | null
+  bathrooms?: number | null
+  squareFootage?: number | null
+  location: string
+  city?: string | null
+  state?: string | null
+  zipCode?: string | null
+  status: string
+  images?: string | null
+  features?: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface Appointment {
+  id: string
+  workspaceId: string
+  leadId: string
+  propertyId?: string | null
+  scheduledAt: Date
+  durationMin: number
+  status: AppointmentStatus
+  channel: string
+  notes?: string | null
+  aiBooked: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface Notification {
+  id: string
+  workspaceId: string
+  userId?: string | null
+  leadId?: string | null
+  type: NotificationType
+  title: string
+  message: string
+  channel: string
+  readAt?: Date | null
+  sentAt?: Date | null
+  metadata?: string | null
+  createdAt: Date
+}
+
+export interface WhatsAppMessage {
+  id: string
+  workspaceId: string
+  leadId: string
+  conversationId?: string | null
+  direction: string
+  body: string
+  mediaUrl?: string | null
+  status: string
+  twilioSid?: string | null
+  price?: number | null
+  sentAt: Date
+  deliveredAt?: Date | null
+  readAt?: Date | null
+}
+
 // ─── AI AGENT ─────────────────────────────────────────────────────────────────
 
 export interface AgentContext {
@@ -307,10 +437,12 @@ export interface AgentContext {
   messages: Message[]
   config: AgentConfig
   workspaceId: string
+  memoryContext?: string  // Injected memory facts
+  sentimentScore?: number
 }
 
 export interface AgentDecision {
-  action: 'reply' | 'handoff' | 'schedule_followup' | 'mark_hot' | 'mark_disqualified' | 'await'
+  action: 'reply' | 'handoff' | 'schedule_followup' | 'mark_hot' | 'mark_disqualified' | 'await' | 'crm_sync' | 'book_viewing'
   reply?: string
   channel?: Channel
   handoffReason?: string
@@ -318,6 +450,11 @@ export interface AgentDecision {
   scoreAdjustment?: number
   updatedFields?: Partial<Lead>
   reasoning?: string
+  // New
+  bookingDetails?: {
+    dateTime?: string
+    propertyId?: string
+  }
 }
 
 export interface LeadQualification {
@@ -336,14 +473,32 @@ export interface LeadQualification {
 
 export interface HandoffPackage {
   leadId: string
+  leadName: string
+  leadEmail: string
+  leadPhone?: string
   agentSummary: string
-  intent: LeadIntent
+  intent: LeadIntent | string
   budget: string
   objections: string[]
   recommendedReply: string
-  urgency: LeadUrgency
-  qualificationStage: QualificationStage
+  urgency: LeadUrgency | string
+  qualificationStage: QualificationStage | string
   score: number
+  conversationUrl?: string
+  channelHistory?: Array<{
+    channel: string
+    messageCount: number
+    lastMessageAt: Date
+  }>
+}
+
+// ─── MEMORY ──────────────────────────────────────────────────────────────────
+
+export interface MemoryExtraction {
+  facts: Array<{ key: string; value: string; confidence: number }>
+  preferences: Array<{ key: string; value: string; confidence: number }>
+  objections: Array<{ objection: string; resolved: boolean; confidence: number }>
+  intentHistory: Array<{ intent: string; timestamp: Date; confidence: number }>
 }
 
 // ─── SCORING ──────────────────────────────────────────────────────────────────
@@ -356,6 +511,46 @@ export interface ScoreBreakdown {
   budgetMatch: number
   channelActivity: number
   total: number
+}
+
+export interface HotDetectionResult {
+  isHot: boolean
+  confidence: number
+  signals: {
+    scoreSignal: boolean
+    replySignal: boolean
+    intentSignal: boolean
+    budgetSignal: boolean
+    urgencySignal: boolean
+    engagementSignal: boolean
+    sentimentSignal: boolean
+  }
+  triggerReason: string
+}
+
+// ─── CHANNEL DELIVERY ─────────────────────────────────────────────────────────
+
+export interface MessageResult {
+  success: boolean
+  externalId?: string
+  status: string
+  error?: string
+  channel: Channel
+}
+
+export interface WhatsAppTemplateVariable {
+  name: string
+  value: string
+}
+
+export interface WhatsAppButton {
+  id: string
+  title: string
+}
+
+export interface WhatsAppListSection {
+  title: string
+  rows: Array<{ id: string; title: string; description?: string }>
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
@@ -378,6 +573,21 @@ export interface ROIDashboardStats {
   messagesSent: number
   replyRate: number
   conversionRate: number
+  // Extended
+  hotLeads: number
+  warmLeads: number
+  coldLeads: number
+  staleLeads: number
+  revenueTrend: Array<{ date: string; value: number }>
+  responseTimeTrend: Array<{ date: string; value: number }>
+  leadSourceBreakdown: Array<{ source: string; count: number }>
+  channelPerformance: Array<{ channel: string; replyRate: number; messageCount: number }>
+  comparison: {
+    revenue: number
+    replyRate: number
+    conversionRate: number
+    responseTime: number
+  }
 }
 
 // ─── AI FOLLOW-UP (legacy compat) ─────────────────────────────────────────────
@@ -424,6 +634,13 @@ export interface WhatsAppInboundPayload {
   messageId: string
   timestamp: number
   profileName?: string
+}
+
+export interface WhatsAppStatusPayload {
+  messageId: string
+  status: 'sent' | 'delivered' | 'read' | 'failed'
+  timestamp: number
+  error?: string
 }
 
 export interface WebFormPayload {

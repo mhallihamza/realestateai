@@ -3,12 +3,19 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
-import { Building2, LayoutDashboard, Users, Settings, LogOut, ChevronRight } from 'lucide-react'
+import {
+  Building2, LayoutDashboard, Users, Settings, LogOut, ChevronRight,
+  Bot, Plug, UserCog, CreditCard,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/leads', label: 'Leads', icon: Users },
+  { href: '/automation', label: 'Automation', icon: Bot },
+  { href: '/integrations', label: 'Integrations', icon: Plug },
+  { href: '/team', label: 'Team', icon: UserCog },
+  { href: '/billing', label: 'Billing', icon: CreditCard },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
@@ -27,14 +34,14 @@ export default function Sidebar() {
           </div>
           <div>
             <p className="font-bold text-gray-900 text-sm leading-tight">RealEstate AI</p>
-            <p className="text-xs text-gray-500">Follow-Up Assistant</p>
+            <p className="text-xs text-gray-500">AI Sales Agent</p>
           </div>
         </Link>
       </div>
 
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(href + '/')
+          const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href + '/'))
           return (
             <Link
               key={href}

@@ -9,6 +9,7 @@ import {
 import toast from 'react-hot-toast'
 import LeadStatusBadge from '@/components/leads/LeadStatusBadge'
 import FollowUpSequence from '@/components/follow-ups/FollowUpSequence'
+import ConversationPanel from '@/components/conversation/ConversationPanel'
 import Modal from '@/components/ui/Modal'
 import LeadForm from '@/components/leads/LeadForm'
 import Button from '@/components/ui/Button'
@@ -40,6 +41,8 @@ export default function LeadDetailPage() {
   const [followUps, setFollowUps] = useState<FollowUp[]>([])
   const [loading, setLoading] = useState(true)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [humanTookOver, setHumanTookOver] = useState(false)
+  const [aiAgentActive, setAiAgentActive] = useState(true)
   const [updatingStatus, setUpdatingStatus] = useState(false)
 
   const fetchLead = useCallback(async () => {
@@ -52,6 +55,8 @@ export default function LeadDetailPage() {
       const data = await res.json()
       setLead(data.lead)
       setFollowUps(data.lead.followUps || [])
+      setHumanTookOver(data.lead.humanTookOver ?? false)
+      setAiAgentActive(data.lead.aiAgentActive ?? true)
     } catch {
       toast.error('Failed to load lead')
     } finally {
@@ -203,7 +208,21 @@ export default function LeadDetailPage() {
           )}
         </div>
 
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white rounded-xl border border-gray-200 card-shadow p-6 min-h-[500px]">
+            <ConversationPanel
+              leadId={leadId}
+              leadName={lead.name}
+              humanTookOver={humanTookOver}
+              aiAgentActive={aiAgentActive}
+              onHandoff={() => {
+                setHumanTookOver(true)
+                setAiAgentActive(false)
+                fetchLead()
+              }}
+            />
+          </div>
+
           <div className="bg-white rounded-xl border border-gray-200 card-shadow p-6">
             <div className="flex items-center gap-2 mb-6">
               <div className="w-8 h-8 gradient-brand rounded-lg flex items-center justify-center">

@@ -7,7 +7,14 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const userId = (session.user as { id: string }).id
+  const userId = (session.user as any).id
+  let workspaceId = (session.user as any).workspaceId
+
+  if (!workspaceId) {
+    const member = await prisma.workspaceMember.findFirst({ where: { userId } })
+    if (!member) return NextResponse.json({ error: 'No workspace found' }, { status: 400 })
+    workspaceId = member.workspaceId
+  }
 
   try {
     const body = await req.json()
@@ -20,6 +27,7 @@ export async function POST(req: Request) {
     const validLeads = leads
       .filter((l) => l.name && l.email)
       .map((l) => ({
+        workspaceId,
         userId,
         name: String(l.name),
         email: String(l.email),
@@ -32,12 +40,19 @@ export async function POST(req: Request) {
         status: l.status || 'New',
       }))
 
-    const result = await prisma.lead.createMany({
-      data: validLeads,
-      skipDuplicates: true,
-    })
+    // Create leads one by one to handle duplicates
+    let count = 0
+    for (const lead of validLeads) {
+      const existing = await prisma.lead.findFirst({
+        where: { workspaceId, email: lead.email }
+      })
+      if (!existing) {
+        await prisma.lead.create({ data: lead as any })
+        count++
+      }
+    }
 
-    return NextResponse.json({ count: result.count, message: `${result.count} leads imported` })
+    return NextResponse.json({ count, message: `${count} leads imported` })
   } catch (error) {
     console.error('[CSV IMPORT]', error)
     return NextResponse.json({ error: 'Import failed' }, { status: 500 })

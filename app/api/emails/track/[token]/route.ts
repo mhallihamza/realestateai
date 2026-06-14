@@ -3,19 +3,19 @@ import { prisma } from '@/lib/prisma'
 import { calculateLeadScore, isHotLead } from '@/lib/scoring'
 import type { EmailEvent } from '@/types'
 
-interface Params {
-  params: { token: string }
-}
-
 const TRANSPARENT_GIF = Buffer.from(
   'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
   'base64'
 )
 
-export async function GET(_req: Request, { params }: Params) {
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ token: string }> }
+) {
+  const { token } = await params
   try {
     const event = await prisma.emailEvent.findUnique({
-      where: { trackingToken: params.token },
+      where: { trackingToken: token },
       include: { lead: { include: { emailEvents: true } } },
     })
 

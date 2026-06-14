@@ -14,7 +14,7 @@ import type {
  * Executes a single stateful conversational turn with an inbound lead message.
  * Enforces rigid structural JSON responses directly using OpenAI's parsing engine.
  */
-export async function runAgentTurn(context: AgentContext, inboundMessage: string): Promise<AgentDecision> {
+export async function runAgentTurn(context: AgentContext & { memoryContext?: string }, inboundMessage: string): Promise<AgentDecision> {
   const { lead, conversation, messages, config } = context
 
   if (lead.humanTookOver) {
@@ -199,6 +199,8 @@ export async function generateHandoffPackage(lead: Lead, messages: Message[], sc
     const parsed = response.choices[0]?.message?.parsed as any
     return {
       leadId: lead.id,
+      leadName: lead.name || '',
+      leadEmail: lead.email || '',
       agentSummary: parsed.agentSummary,
       intent: parsed.intent,
       budget: parsed.budget,
@@ -207,10 +209,12 @@ export async function generateHandoffPackage(lead: Lead, messages: Message[], sc
       urgency: parsed.urgency,
       qualificationStage: parsed.qualificationStage,
       score,
-    }
+    } as HandoffPackage
   } catch {
     return {
       leadId: lead.id,
+      leadName: lead.name || '',
+      leadEmail: lead.email || '',
       agentSummary: 'Lead engaged via AI. Ready for human follow-up.',
       intent: lead.intent || 'unknown',
       budget: lead.budget || 'Not specified',
@@ -219,7 +223,7 @@ export async function generateHandoffPackage(lead: Lead, messages: Message[], sc
       urgency: lead.urgency || 'unknown',
       qualificationStage: lead.qualificationStage || 'qualifying',
       score,
-    }
+    } as HandoffPackage
   }
 }
 

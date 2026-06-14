@@ -6,8 +6,10 @@ const statusConfig: Record<LeadStatus, { label: string; className: string }> = {
   Active: { label: 'Active', className: 'bg-green-100 text-green-700' },
   'Follow-up': { label: 'Follow-up', className: 'bg-yellow-100 text-yellow-700' },
   Hot: { label: '🔥 Hot', className: 'bg-red-100 text-red-700' },
+  Warm: { label: 'Warm', className: 'bg-orange-100 text-orange-700' },
   Cold: { label: 'Cold', className: 'bg-gray-100 text-gray-600' },
   Closed: { label: 'Closed', className: 'bg-purple-100 text-purple-700' },
+  Disqualified: { label: 'Disqualified', className: 'bg-red-100 text-red-800 line-through' },
 }
 
 interface LeadStatusBadgeProps {

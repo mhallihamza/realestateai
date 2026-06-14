@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { evaluate } from '@/lib/decision-engine'
 import { LeadStatus, LeadSource, Channel, QualificationStage } from '@/types'
+import type { Lead, AgentConfig } from '@/types'
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
@@ -87,6 +89,15 @@ export async function POST(req: Request) {
         score: 0,
       },
     })
+
+    const config = await prisma.agentConfig.findUnique({ where: { workspaceId } })
+    if (config) {
+      await evaluate({
+        lead: lead as unknown as Lead,
+        config: config as unknown as AgentConfig,
+        trigger: 'lead_created',
+      })
+    }
 
     return NextResponse.json({ lead }, { status: 201 })
   } catch (error) {

@@ -5,10 +5,6 @@ import { prisma } from '@/lib/prisma'
 import { openai } from '@/lib/openai'
 import type { WritingTone } from '@/types'
 
-interface Params {
-  params: { id: string }
-}
-
 const timingLabels: Record<number, string> = {
   0: 'immediately after the lead contacted you',
   2: '2 days after their initial inquiry',
@@ -17,14 +13,18 @@ const timingLabels: Record<number, string> = {
   21: '3 weeks after their inquiry as a final follow-up',
 }
 
-export async function POST(req: Request, { params }: Params) {
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const userId = (session.user as { id: string }).id
 
   const followUp = await prisma.followUp.findFirst({
-    where: { id: params.id },
+    where: { id },
     include: {
       lead: {
         include: { user: { select: { name: true, writingTone: true } } },
@@ -76,7 +76,7 @@ Return ONLY valid JSON (no markdown):
     const parsed = JSON.parse(cleaned)
 
     const updated = await prisma.followUp.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         subject: parsed.subject,
         body: parsed.body,
