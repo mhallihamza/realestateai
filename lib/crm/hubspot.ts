@@ -42,24 +42,60 @@ export class HubSpotAdapter implements CrmProvider {
   private getClient() {
     return {
       request: async (method: string, path: string, body?: any) => {
-        await this.ensureValidToken()
+  await this.ensureValidToken()
 
-        const response = await fetch(`${HUBSPOT_API_BASE}${path}`, {
-          method,
-          headers: {
-            'Authorization': `Bearer ${this.accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: body ? JSON.stringify(body) : undefined,
-        })
+  const controller = new AbortController()
 
-        if (!response.ok) {
-          const errorText = await response.text()
-          throw new Error(`HubSpot API error (${response.status}): ${errorText}`)
-        }
+  const timeout = setTimeout(() => {
+    controller.abort()
+  }, 8000) // 8 seconds timeout
 
-        return response.json()
+  try {
+    console.log('[HUBSPOT REQUEST] →', method, path)
+
+    const response = await fetch(`${HUBSPOT_API_BASE}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${this.accessToken}`,
+        'Content-Type': 'application/json',
       },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeout)
+
+    const text = await response.text()
+
+    if (!response.ok) {
+      console.error('[HUBSPOT API ERROR]', {
+        status: response.status,
+        body: text,
+        path,
+      })
+
+      throw new Error(`HubSpot API error (${response.status}): ${text}`)
+    }
+
+    // safely parse JSON
+    try {
+      return JSON.parse(text)
+    } catch {
+      return text
+    }
+
+  } catch (err: any) {
+    clearTimeout(timeout)
+
+    console.error('[HUBSPOT REQUEST FAILED]', {
+      message: err.message,
+      name: err.name,
+      path,
+    })
+
+    throw err
+  }
+},
     }
   }
 
