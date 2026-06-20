@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     const forwardedProto = req.headers.get('x-forwarded-proto') || 'https'
     const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host')
     const fullUrl = `${forwardedProto}://${forwardedHost}${new URL(req.url).pathname}`
-    console.log("URL:", req.url)
+    console.log("URL:", fullUrl)
     console.log("BODY:", body)
     const isValid = webhookClient.validateSignature({
   method: req.method,
