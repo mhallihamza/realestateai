@@ -342,35 +342,32 @@ export class HubSpotAdapter implements CrmProvider {
   getWebhookClient() {
   return {
     validateSignature: (params: {
-      method: string
-      url: string
-      body: string
-      timestamp: string
-      signature: string
-    }) => {
-      const secret = process.env.HUBSPOT_CLIENT_SECRET
-      if (!secret) return false
+  method: string
+  url: string
+  body: string
+  timestamp: string
+  signature: string
+}) => {
+  const secret = process.env.HUBSPOT_CLIENT_SECRET
+  if (!secret) return false
 
-      const uri = params.url.startsWith('http')
-        ? params.url
-        : `https://${params.url}`
+  // IMPORTANT: use EXACT url from request (do NOT rebuild it)
+  const rawString =
+    params.method +
+    params.url +
+    params.body +
+    params.timestamp
 
-      const rawString =
-        params.method +
-        uri +
-        params.body +
-        params.timestamp
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(rawString, 'utf8')
+    .digest('hex') // ✅ FIX HERE
 
-      const expected = crypto
-        .createHmac('sha256', secret)
-        .update(rawString)
-        .digest('base64')
+  // HubSpot signature is HEX in v3
+  const isValid = expected === params.signature
 
-      return crypto.timingSafeEqual(
-        Buffer.from(expected),
-        Buffer.from(params.signature)
-      )
-    },
+  return isValid
+}
   }
 }
 }

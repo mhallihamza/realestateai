@@ -41,11 +41,14 @@ export async function POST(req: Request) {
     const { HubSpotAdapter } = await import('@/lib/crm/hubspot')
     const adapter = new HubSpotAdapter(integration)
     const webhookClient = adapter.getWebhookClient()
+    const forwardedProto = req.headers.get('x-forwarded-proto') || 'https'
+    const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host')
+    const fullUrl = `${forwardedProto}://${forwardedHost}${new URL(req.url).pathname}`
     console.log("URL:", req.url)
     console.log("BODY:", body)
     const isValid = webhookClient.validateSignature({
   method: req.method,
-  url: req.url,
+  url: fullUrl,
   body,
   timestamp,
   signature,
