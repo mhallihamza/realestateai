@@ -117,6 +117,11 @@ export async function processJob(job: any): Promise<void> {
       await processNotificationJob(payload)
       break
 
+    case 'lead_ingest':
+      const { processLeadIngestJob } = await import('./workers/lead-ingest-worker')
+      await processLeadIngestJob(payload)
+      break
+
     default:
       console.warn(`Unknown job type: ${job.type}`)
   }

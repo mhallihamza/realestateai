@@ -1,19 +1,31 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense, useRef } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { Building2, Mail, Lock, Eye, EyeOff } from 'lucide-react'
+import { Building2, Mail, Lock, Eye, EyeOff, CheckCircle, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const hasShownVerification = useRef(false)
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+  if (
+    searchParams.get('verified') === 'true' &&
+    !hasShownVerification.current
+  ) {
+    hasShownVerification.current = true
+    toast.success('Email verified! Please sign in to continue.')
+  }
+  }, [searchParams])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -45,6 +57,15 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen gradient-hero flex items-center justify-center px-4">
       <div className="w-full max-w-md">
+        {searchParams.get('verified') === 'true' && (
+          <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+            <p className="text-sm text-green-700 font-medium">
+              Email verified! Please sign in to continue setting up your workspace.
+            </p>
+          </div>
+        )}
+
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-6">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
@@ -124,7 +145,7 @@ export default function LoginPage() {
           </form>
 
           <p className="text-center text-sm text-gray-600 mt-6">
-            Don&apos;t have an account?{' '}
+            Don't have an account?{' '}
             <Link href="/register" className="text-blue-600 font-medium hover:underline">
               Create one free
             </Link>
@@ -132,5 +153,19 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen gradient-hero flex items-center justify-center px-4">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-white mx-auto animate-spin" />
+        </div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }

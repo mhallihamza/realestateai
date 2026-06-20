@@ -13,10 +13,10 @@ export async function POST(
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const userId = (session.user as { id: string }).id
+  const workspaceId = (session.user as { id: string; workspaceId: string }).workspaceId
 
   const lead = await prisma.lead.findFirst({
-    where: { id, userId },
+    where: { id, workspaceId },
     include: { emailEvents: true },
   })
 

@@ -15,16 +15,23 @@ export async function GET(
   if (!session?.user)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const userId = (session.user as { id: string }).id
+  const workspaceId = (session.user as { id: string; workspaceId: string }).workspaceId
 
   const { id } = await params
 
   const lead = await prisma.lead.findFirst({
-    where: { id, userId },
+    where: { id, workspaceId },
     include: {
       followUps: { orderBy: { sequenceNumber: 'asc' } },
       emailEvents: { orderBy: { createdAt: 'desc' }, take: 20 },
       user: { select: { writingTone: true, name: true } },
+      conversations: {
+        include: {
+          messages: { orderBy: { sentAt: 'asc' }, take: 50 },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 1,
+      },
     },
   })
 
@@ -43,12 +50,12 @@ export async function PUT(
   if (!session?.user)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const userId = (session.user as { id: string }).id
+  const workspaceId = (session.user as { id: string; workspaceId: string }).workspaceId
 
   const { id } = await params
 
   const existing = await prisma.lead.findFirst({
-    where: { id, userId }
+    where: { id, workspaceId }
   })
 
   if (!existing)
@@ -106,12 +113,12 @@ export async function DELETE(
   if (!session?.user)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const userId = (session.user as { id: string }).id
+  const workspaceId = (session.user as { id: string; workspaceId: string }).workspaceId
 
   const { id } = await params
 
   const existing = await prisma.lead.findFirst({
-    where: { id, userId }
+    where: { id, workspaceId }
   })
 
   if (!existing)

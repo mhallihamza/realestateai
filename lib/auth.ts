@@ -8,6 +8,7 @@ import { WorkspaceRole, SubscriptionPlan, WritingTone } from '@/types'
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   pages: {
     signIn: '/login',
@@ -32,46 +33,38 @@ export const authOptions: NextAuthOptions = {
           throw new Error('No account found with this email')
         }
 
+        // 🔐 BLOCK PENDING VERIFICATION
+        if (user.accountStatus === 'pending_verification') {
+          throw new Error('Please verify your email before logging in. Check your inbox for the verification link.')
+        }
+
+        // 🔐 BLOCK SUSPENDED USERS
+        if (user.accountStatus === 'suspended') {
+          throw new Error('Your account has been suspended. Please contact support.')
+        }
+
         const isPasswordValid = await bcrypt.compare(credentials.password, user.password)
 
         if (!isPasswordValid) {
           throw new Error('Invalid password')
         }
 
-        // Look for their workspace relationship assignment
-        let membership = await prisma.workspaceMember.findFirst({
+        // Find their workspace membership
+        const membership = await prisma.workspaceMember.findFirst({
           where: { userId: user.id },
           include: { workspace: true }
         })
 
-        // Edge case: If they have no workspace yet, auto-create a default one matching your exact types
+        // If verified but no workspace exists yet, flag for onboarding
         if (!membership) {
-          const defaultPlan: SubscriptionPlan = 'free'
-          const defaultTone: WritingTone = 'professional'
-          const defaultRole: WorkspaceRole = 'owner'
-
-          const defaultWorkspace = await prisma.workspace.create({
-            data: {
-              name: `${user.name || 'My'}'s Workspace`,
-              slug: `workspace-${user.id}-${Date.now().toString().slice(-4)}`,
-              plan: defaultPlan,
-              agentConfigs: {
-                create: {
-                  agentName: 'AI Assistant',
-                  tone: defaultTone,
-                }
-              }
-            }
-          })
-
-          membership = await prisma.workspaceMember.create({
-            data: {
-              workspaceId: defaultWorkspace.id,
-              userId: user.id,
-              role: defaultRole,
-            },
-            include: { workspace: true }
-          })
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            workspaceId: null,
+            role: null,
+            needsOnboarding: true,
+          }
         }
 
         return {
@@ -80,26 +73,53 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           workspaceId: membership.workspaceId,
           role: membership.role as WorkspaceRole,
+          needsOnboarding: false,
         }
       },
     }),
   ],
-  // Replace your existing callbacks block at the bottom of lib/auth.ts with this:
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
+      // On initial sign in, store user data in the token
       if (user) {
         token.id = user.id
         token.workspaceId = (user as any).workspaceId
         token.role = (user as any).role
+        token.needsOnboarding = (user as any).needsOnboarding
       }
+
+      // If the token was updated via update() trigger (e.g. after onboarding),
+      // or on any subsequent JWT read: re-query membership from DB
+      // This ensures the session is always up-to-date with the current workspace
+      if (token.id && (trigger === 'update' || !user)) {
+        const membership = await prisma.workspaceMember.findFirst({
+          where: { userId: token.id as string },
+          select: {
+            workspaceId: true,
+            role: true,
+          }
+        })
+
+        if (membership) {
+          token.workspaceId = membership.workspaceId
+          token.role = membership.role
+          token.needsOnboarding = false
+        } else {
+          // Still no workspace — user still needs onboarding
+          token.workspaceId = null
+          token.role = null
+          token.needsOnboarding = true
+        }
+      }
+
       return token
     },
     async session({ session, token }) {
       if (session.user) {
-        // Explicitly casting token properties to strings to eliminate the 'unknown' error
         (session.user as any).id = token.id as string;
         (session.user as any).workspaceId = token.workspaceId as string;
         (session.user as any).role = token.role as string;
+        (session.user as any).needsOnboarding = token.needsOnboarding as boolean;
       }
       return session
     },

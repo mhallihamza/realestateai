@@ -50,6 +50,10 @@ export type NotificationType = 'hot_lead' | 'handoff' | 'score_alert' | 'booking
 export type AppointmentStatus = 'scheduled' | 'confirmed' | 'completed' | 'cancelled' | 'no_show'
 export type MemoryType = 'fact' | 'preference' | 'objection' | 'intent' | 'timeline'
 
+// ─── AUTHENTICATION ──────────────────────────────────────────────────────────
+
+export type AccountStatus = 'pending_verification' | 'active' | 'suspended'
+
 // ─── CORE MODELS ──────────────────────────────────────────────────────────────
 
 export interface Workspace {
@@ -90,6 +94,15 @@ export interface User {
   phone?: string | null
   notifyEmail: boolean
   notifySMS: boolean
+  
+  // Authentication fields
+  accountStatus: AccountStatus
+  emailVerified?: Date | null
+  verificationToken?: string | null
+  verificationTokenExpiresAt?: Date | null
+  resetPasswordToken?: string | null
+  resetPasswordExpires?: Date | null
+  
   createdAt: Date
   updatedAt: Date
 }

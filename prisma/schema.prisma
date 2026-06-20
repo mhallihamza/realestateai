@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -46,6 +46,7 @@ model Workspace {
   appointments  Appointment[]
   notifications Notification[]
   whatsappMessages WhatsAppMessage[]
+  integrationActivityLogs IntegrationActivityLog[]
 }
 
 model WorkspaceMember {
@@ -73,10 +74,16 @@ model User {
   phone       String?
   notifyEmail Boolean  @default(true)
   notifySMS   Boolean  @default(false)
-  emailVerified        DateTime?
-  verificationToken    String?   @unique
+  
+  // ─── AUTHENTICATION FIELDS ────────────────────────────────────────────────
+  accountStatus           String    @default("pending_verification") // pending_verification, active, suspended
+  emailVerified           DateTime?
+  verificationToken       String?   @unique
+  verificationTokenExpiresAt DateTime?
+  
   resetPasswordToken   String?   @unique
   resetPasswordExpires DateTime?
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -300,7 +307,7 @@ model WebhookEvent {
   id          String    @id @default(cuid())
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  source      String    // facebook, whatsapp, webform
+  source      String    // facebook, whatsapp, webform, hubspot
   eventType   String
   payload     String    // Stringified raw incoming body content
   processed   Boolean   @default(false)
@@ -347,12 +354,37 @@ model Integration {
   accessToken  String?
   refreshToken String?
   expiresAt    DateTime?
+  hubspotAccountId String?
+  hubspotAccountName String?
+  hubspotEmail      String?
   config       String?   // Stringified JSON structure layout config
   status       String    @default("active") // active, error, disconnected
+  lastSyncAt   DateTime?
+  lastSyncStatus String? // success, error
+  syncError    String?
+  integrationActivityLogs IntegrationActivityLog[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   @@unique([workspaceId, provider])
+}
+
+// ─── INTEGRATION ACTIVITY LOG ─────────────────────────────────────────────────
+
+model IntegrationActivityLog {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  integrationId String
+  integration   Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  provider      String    // hubspot, salesforce
+  eventType     String    // sync_started, sync_completed, sync_failed, webhook_received, webhook_processed, webhook_failed, token_refreshed, token_expired, connected, disconnected, error
+  message       String
+  metadata      String?   // JSON with additional context
+  createdAt     DateTime  @default(now())
+
+  @@index([workspaceId, provider, createdAt])
+  @@index([integrationId, createdAt])
 }
 
 // ─── SUBSCRIPTION + STRIPE ────────────────────────────────────────────────────

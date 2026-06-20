@@ -1,205 +1,152 @@
 'use client'
 
 import { useState } from 'react'
-import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Building2, Mail, Lock, User, Briefcase } from 'lucide-react'
+import { Building2, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function RegisterPage() {
   const router = useRouter()
-  const [form, setForm] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    agencyName: '',
-  })
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
 
-  function updateForm(field: string, value: string) {
-    setForm((prev) => ({ ...prev, [field]: value }))
+  const passwordRequirements = {
+    length: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    number: /[0-9]/.test(password),
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError('')
-
-    if (form.password !== form.confirmPassword) {
-      setError('Passwords do not match')
-      return
-    }
-
-    if (form.password.length < 6) {
-      setError('Password must be at least 6 characters')
+    if (!passwordRequirements.length || !passwordRequirements.uppercase || !passwordRequirements.number) {
+      toast.error('Please meet all password requirements')
       return
     }
 
     setLoading(true)
-
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: form.name,
-          email: form.email,
-          password: form.password,
-          agencyName: form.agencyName,
-        }),
+        body: JSON.stringify({ name, email, password }),
       })
 
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || 'Registration failed')
-        return
+        throw new Error(data.error || 'Registration failed')
       }
 
-      const signInResult = await signIn('credentials', {
-        email: form.email,
-        password: form.password,
-        redirect: false,
-      })
-
-      if (signInResult?.error) {
-        toast.error('Account created but login failed. Please sign in manually.')
-        router.push('/login')
-      } else {
-        toast.success('Account created! Welcome to RealEstate AI')
-        router.push('/dashboard')
-        router.refresh()
-      }
-    } catch {
-      setError('Something went wrong. Please try again.')
+      // Redirect to check-email page
+      router.push(`/check-email?email=${encodeURIComponent(email)}`)
+    } catch (err: any) {
+      toast.error(err.message)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen gradient-hero flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-6">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-              <Building2 className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 gradient-brand rounded-xl flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-white" />
             </div>
-            <span className="font-bold text-white text-xl">RealEstate AI</span>
+            <span className="font-bold text-gray-900 text-xl">RealEstate AI</span>
           </Link>
-          <h1 className="text-3xl font-bold text-white mb-2">Create your account</h1>
-          <p className="text-blue-200">Start closing more deals today</p>
+          <h1 className="text-2xl font-bold text-gray-900">Create your account</h1>
+          <p className="text-gray-600 mt-2">Start your free 14-day trial</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-8 shadow-2xl">
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              {error}
-            </div>
-          )}
+        <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200 space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="John Smith"
+              required
+            />
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Full name</label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  required
-                  value={form.name}
-                  onChange={(e) => updateForm('name', e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                  placeholder="John Smith"
-                />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="john@example.com"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-3 py-2.5 pr-10 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Create a strong password"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+
+            {password && (
+              <div className="mt-3 space-y-2">
+                <Requirement met={passwordRequirements.length} text="At least 8 characters" />
+                <Requirement met={passwordRequirements.uppercase} text="One uppercase letter" />
+                <Requirement met={passwordRequirements.number} text="One number" />
               </div>
-            </div>
+            )}
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Agency name (optional)</label>
-              <div className="relative">
-                <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  value={form.agencyName}
-                  onChange={(e) => updateForm('agencyName', e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                  placeholder="Smith Real Estate"
-                />
-              </div>
-            </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+          >
+            {loading ? 'Creating account...' : 'Create account'}
+          </button>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email address</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="email"
-                  required
-                  value={form.email}
-                  onChange={(e) => updateForm('email', e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                  placeholder="you@example.com"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="password"
-                  required
-                  value={form.password}
-                  onChange={(e) => updateForm('password', e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                  placeholder="Min. 6 characters"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Confirm password</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="password"
-                  required
-                  value={form.confirmPassword}
-                  onChange={(e) => updateForm('confirmPassword', e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                  placeholder="Confirm your password"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
-            >
-              {loading ? (
-                <>
-                  <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Creating account...
-                </>
-              ) : 'Create Account'}
-            </button>
-          </form>
-
-          <p className="text-center text-sm text-gray-600 mt-6">
+          <p className="text-center text-sm text-gray-600">
             Already have an account?{' '}
-            <Link href="/login" className="text-blue-600 font-medium hover:underline">
+            <Link href="/login" className="text-blue-600 hover:text-blue-700 font-medium">
               Sign in
             </Link>
           </p>
-        </div>
+        </form>
       </div>
+    </div>
+  )
+}
+
+function Requirement({ met, text }: { met: boolean; text: string }) {
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      {met ? (
+        <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+      ) : (
+        <XCircle className="w-3.5 h-3.5 text-gray-300" />
+      )}
+      <span className={met ? 'text-green-700' : 'text-gray-500'}>{text}</span>
     </div>
   )
 }

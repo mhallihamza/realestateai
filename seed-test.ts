@@ -32,6 +32,8 @@ async function main() {
       name: 'Hamza Dev',
       email: 'hamza.dev@example.com',
       password: 'dummy_password_hash_123',
+      accountStatus: 'active',
+      emailVerified: new Date(),
     },
   })
 

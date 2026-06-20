@@ -14,16 +14,15 @@ export async function PUT(req: Request, { params }: Params) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const userId = (session.user as { id: string }).id
+  const workspaceId = (session.user as { id: string; workspaceId: string }).workspaceId
 
   const { id } = await params
 
   const followUp = await prisma.followUp.findFirst({
-    where: { id },
-    include: { lead: { select: { userId: true } } },
+    where: { id, workspaceId },
   })
 
-  if (!followUp || followUp.lead.userId !== userId) {
+  if (!followUp) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 

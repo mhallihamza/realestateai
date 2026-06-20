@@ -1,80 +1,111 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
-import Link from 'next/link'
-import { Building2, CheckCircle } from 'lucide-react'
-import toast from 'react-hot-toast'
+import { useEffect, useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 
 function VerifyEmailContent() {
+  const router = useRouter()
   const searchParams = useSearchParams()
-  const token = searchParams.get('token') || ''
+  const token = searchParams.get('token')
+  const verified = searchParams.get('verified')
+  const error = searchParams.get('error')
+
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
+  const [message, setMessage] = useState('')
 
   useEffect(() => {
-    if (!token) {
+    if (error) {
       setStatus('error')
+      setMessage(decodeURIComponent(error))
       return
     }
-    fetch('/api/auth/verify-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
-    })
-      .then((res) => {
-        if (res.ok) {
-          setStatus('success')
-          toast.success('Email verified!')
-        } else {
-          setStatus('error')
-        }
+
+    if (verified === 'true') {
+      // Token already verified via GET endpoint, just redirect to login
+      setStatus('success')
+      setMessage('Account verified! Redirecting to login...')
+      setTimeout(() => {
+        router.push('/login?verified=true')
+      }, 1500)
+    } else if (token) {
+      // Call POST to verify the token
+      setStatus('loading')
+      fetch('/api/auth/verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
       })
-      .catch(() => setStatus('error'))
-  }, [token])
-
-  if (status === 'loading') {
-    return <p className="text-center text-gray-500">Verifying your email...</p>
-  }
-
-  if (status === 'success') {
-    return (
-      <div className="text-center space-y-4">
-        <CheckCircle className="w-16 h-16 text-green-500 mx-auto" />
-        <h2 className="text-xl font-bold text-gray-900">Email verified!</h2>
-        <p className="text-gray-600">Your account is ready. Sign in to start using your AI sales agent.</p>
-        <Link href="/login" className="inline-block bg-blue-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-blue-700">
-          Sign In
-        </Link>
-      </div>
-    )
-  }
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            setStatus('success')
+            setMessage('Account verified! Redirecting to login...')
+            setTimeout(() => {
+              router.push('/login?verified=true')
+            }, 1500)
+          } else {
+            setStatus('error')
+            setMessage(data.error || 'Verification failed')
+          }
+        })
+        .catch(() => {
+          setStatus('error')
+          setMessage('An error occurred. Please try again.')
+        })
+    } else {
+      setStatus('error')
+      setMessage('No verification token found. Please check your email link.')
+    }
+  }, [token, verified, error, router])
 
   return (
-    <div className="text-center space-y-4">
-      <p className="text-gray-600">Invalid or expired verification link.</p>
-      <Link href="/login" className="text-blue-600 hover:underline">Back to sign in</Link>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+      <div className="w-full max-w-md bg-white rounded-2xl p-8 shadow-sm border border-gray-200 text-center">
+        {status === 'loading' && (
+          <div>
+            <Loader2 className="w-16 h-16 text-blue-600 mx-auto mb-4 animate-spin" />
+            <h1 className="text-xl font-bold text-gray-900">Verifying your email...</h1>
+          </div>
+        )}
+
+        {status === 'success' && (
+          <div>
+            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+            <h1 className="text-xl font-bold text-gray-900">Email verified!</h1>
+            <p className="text-gray-600 mt-2">{message}</p>
+          </div>
+        )}
+
+        {status === 'error' && (
+          <div>
+            <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+            <h1 className="text-xl font-bold text-gray-900">Verification failed</h1>
+            <p className="text-gray-600 mt-2">{message}</p>
+            <button
+              onClick={() => router.push('/login')}
+              className="mt-6 text-sm font-medium text-blue-600 hover:text-blue-700"
+            >
+              Back to login
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
 export default function VerifyEmailPage() {
   return (
-    <div className="min-h-screen gradient-hero flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 mb-6">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-              <Building2 className="w-6 h-6 text-white" />
-            </div>
-            <span className="font-bold text-white text-xl">RealEstate AI</span>
-          </Link>
-        </div>
-        <div className="bg-white rounded-2xl p-8 shadow-2xl">
-          <Suspense fallback={<p className="text-center text-gray-500">Loading...</p>}>
-            <VerifyEmailContent />
-          </Suspense>
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="w-full max-w-md bg-white rounded-2xl p-8 shadow-sm border border-gray-200 text-center">
+          <Loader2 className="w-16 h-16 text-blue-600 mx-auto mb-4 animate-spin" />
+          <h1 className="text-xl font-bold text-gray-900">Loading...</h1>
         </div>
       </div>
-    </div>
+    }>
+      <VerifyEmailContent />
+    </Suspense>
   )
 }

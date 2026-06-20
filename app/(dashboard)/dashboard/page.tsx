@@ -13,7 +13,14 @@ export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
   if (!session?.user) redirect('/login')
 
-  const workspaceId = (session.user as any).workspaceId
+  const user = session.user as any
+
+  // If user hasn't completed onboarding yet, redirect to onboarding
+  if (user.needsOnboarding) {
+    redirect('/onboarding')
+  }
+
+  const workspaceId = user.workspaceId
 
   // 1. Fetch historical counter metrics on the server for speed
   const allLeads = await prisma.lead.findMany({

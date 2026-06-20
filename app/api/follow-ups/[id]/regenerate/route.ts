@@ -21,10 +21,10 @@ export async function POST(
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const userId = (session.user as { id: string }).id
+  const workspaceId = (session.user as { id: string; workspaceId: string }).workspaceId
 
   const followUp = await prisma.followUp.findFirst({
-    where: { id },
+    where: { id, workspaceId },
     include: {
       lead: {
         include: { user: { select: { name: true, writingTone: true } } },
@@ -32,7 +32,7 @@ export async function POST(
     },
   })
 
-  if (!followUp || followUp.lead.userId !== userId) {
+  if (!followUp) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
