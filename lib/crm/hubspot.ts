@@ -6,7 +6,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import crypto from 'crypto'
+import { Signature } from '@hubspot/api-client'
 import type { CrmProvider, CrmSyncResult, CrmFetchResult } from './interface'
 import type { Lead } from '@/types'
 import { logIntegrationActivity } from './activity-logger'
@@ -338,35 +338,29 @@ export class HubSpotAdapter implements CrmProvider {
       email,
     }
   }
-
-  getWebhookClient() {
+getWebhookClient() {
   return {
     validateSignature: (params: {
-  method: string
-  url: string
-  body: string
-  timestamp: string
-  signature: string
-}) => {
-  const secret = process.env.HUBSPOT_CLIENT_SECRET
-  if (!secret) return false
+      method: string
+      url: string
+      body: string
+      timestamp: number
+      signature: string
+    }) => {
+      const secret = process.env.HUBSPOT_CLIENT_SECRET
 
-  // ⚠️ MUST use EXACT raw request URL from HubSpot
-  const rawUrl = params.url
+      if (!secret) return false
 
-  const rawString =
-    params.method +
-    rawUrl +
-    params.body +
-    params.timestamp
-
-  const expected = crypto
-    .createHmac('sha256', secret)
-    .update(rawString, 'utf8')
-    .digest('hex')
-
-  return expected === params.signature
-}
+      return Signature.isValid({
+        signatureVersion: 'v3',
+        signature: params.signature,
+        method: params.method,
+        clientSecret: secret,
+        requestBody: params.body,
+        url: params.url,
+        timestamp: params.timestamp,
+      })
+    },
   }
 }
 }

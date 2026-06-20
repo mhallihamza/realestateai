@@ -12,6 +12,7 @@
     "db:generate": "prisma generate"
   },
   "dependencies": {
+    "@hubspot/api-client": "^13.5.0",
     "@prisma/client": "^5.16.0",
     "@sendgrid/mail": "^8.1.6",
     "@types/papaparse": "^5.3.14",

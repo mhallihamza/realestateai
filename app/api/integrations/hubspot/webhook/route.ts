@@ -14,7 +14,9 @@ export async function POST(req: Request) {
   try {
     const body = await req.text()
     const signature = req.headers.get('x-hubspot-signature-v3') || ''
-    const timestamp = req.headers.get('x-hubspot-request-timestamp') || ''
+    const timestamp = Number(
+       req.headers.get('x-hubspot-request-timestamp')
+         )
     const workspaceId = req.headers.get('x-workspace-id') || req.headers.get('x-hubspot-workspace-id') || ''
 
     // Find integration by workspace
@@ -43,10 +45,8 @@ export async function POST(req: Request) {
     const webhookClient = adapter.getWebhookClient()
     const proto = req.headers.get('x-forwarded-proto') || 'https'
     const host = req.headers.get('x-forwarded-host') || req.headers.get('host')
-
-    const url = `${proto}://${host}/api/integrations/hubspot/webhook`
-    console.log("URL:", url)
-    console.log("BODY:", body)
+    const pathname = new URL(req.url).pathname
+    const url = `${proto}://${host}${pathname}`
     const isValid = webhookClient.validateSignature({
   method: req.method,
   url: url,

@@ -83,7 +83,7 @@ export interface CrmProvider {
   method: string
   url: string
   body: string
-  timestamp: string
+  timestamp: number
   signature: string
 }): boolean
 }
