@@ -101,10 +101,15 @@ export class HubSpotAdapter implements CrmProvider {
 
   private async ensureValidToken(): Promise<void> {
     if (!this.expiresAt || new Date() >= this.expiresAt) {
+      console.log('[HUBSPOT ENSURE TOKEN] token expired or missing, refreshing...', {
+        expiresAt: this.expiresAt?.toISOString(),
+        hasRefreshToken: !!this.refreshToken,
+      })
       const refreshed = await this.refreshAccessToken()
       if (!refreshed) {
         throw new Error('HubSpot token expired and refresh failed')
       }
+      console.log('[HUBSPOT ENSURE TOKEN] token refreshed successfully')
     }
   }
 
@@ -275,18 +280,30 @@ export class HubSpotAdapter implements CrmProvider {
         refresh_token: this.refreshToken,
       })
 
+      const controller = new AbortController()
+      const timeout = setTimeout(() => {
+        controller.abort()
+      }, 10000) // 10 second timeout for token refresh
+
+      console.log('[HUBSPOT REFRESH] attempting token refresh')
+
       const response = await fetch(HUBSPOT_TOKEN_BASE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: params.toString(),
+        signal: controller.signal,
       })
 
+      clearTimeout(timeout)
+
       if (!response.ok) {
+        console.error('[HUBSPOT REFRESH] token refresh failed with status', response.status)
         await logIntegrationActivity(this.workspaceId, this.integrationId, 'hubspot', 'token_expired', 'HubSpot token refresh failed')
         return false
       }
 
       const data = await response.json()
+      console.log('[HUBSPOT REFRESH] token refreshed successfully')
 
       const expiresAt = new Date(Date.now() + (data.expires_in || 3600) * 1000)
 
@@ -307,7 +324,11 @@ export class HubSpotAdapter implements CrmProvider {
       await logIntegrationActivity(this.workspaceId, this.integrationId, 'hubspot', 'token_refreshed', 'HubSpot token refreshed successfully')
 
       return true
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[HUBSPOT REFRESH] token refresh error:', {
+        message: error.message,
+        name: error.name,
+      })
       return false
     }
   }
