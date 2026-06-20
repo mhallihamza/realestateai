@@ -181,9 +181,14 @@ export class HubSpotAdapter implements CrmProvider {
       const result = await client.request('GET', `/crm/v3/objects/contacts/${objectId}?properties=firstname,lastname,email,phone`)
       return result || null
     } catch (error: any) {
-      console.error('[HUBSPOT_FETCH_CONTACT_ERROR]', error)
-      return null
-    }
+  console.error('[HUBSPOT_FETCH_CONTACT_ERROR FULL]', {
+    message: error.message,
+    status: error.status,
+    objectId,
+  })
+
+  throw error
+}
   }
 
   async fetchRecent(since?: Date, page?: string): Promise<CrmFetchResult> {
