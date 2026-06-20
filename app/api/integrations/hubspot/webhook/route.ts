@@ -13,6 +13,7 @@ import { processLeadIngestJob } from '@/lib/workers/lead-ingest-worker'
  */
 export async function POST(req: Request) {
   try {
+    console.log('[WEBHOOK] received')
     const body = await req.text()
     const signature = req.headers.get('x-hubspot-signature-v3') || ''
     const timestamp = Number(
@@ -106,7 +107,7 @@ export async function POST(req: Request) {
           processed: false,
         },
       })
-
+      console.log('[WEBHOOK] about to trigger lead pipeline')
       // Enqueue processing job (async) - keep queue for retry/backup
       await enqueueJob({
         workspaceId: integration.workspaceId,

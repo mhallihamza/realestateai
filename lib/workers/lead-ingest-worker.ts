@@ -51,6 +51,7 @@ export async function processLeadIngestJob(payload: Record<string, unknown>): Pr
 
     // Fetch the contact from the external CRM
     const contact = await crm.fetchContact(objectId)
+    console.log('[LEAD WORKER] started')
     if (!contact || !contact.properties) {
       console.error('[LEAD_INGEST] Contact not found in CRM', objectId)
       await logIntegrationActivity(
@@ -89,6 +90,7 @@ export async function processLeadIngestJob(payload: Record<string, unknown>): Pr
     }
 
     // Resolve a valid userId from workspace members (follow existing patterns)
+    console.log('[LEAD WORKER] about to create lead', payload)
     const defaultMember = await prisma.workspaceMember.findFirst({
       where: { workspaceId },
     })
@@ -152,6 +154,7 @@ export async function processLeadIngestJob(payload: Record<string, unknown>): Pr
           crmSource: crm.provider,
         },
       })
+      console.log('[PRISMA] creating lead...')
     }
 
     // Mark the webhook event as processed

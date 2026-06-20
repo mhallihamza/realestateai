@@ -11,6 +11,7 @@ export interface EnqueueJobInput {
 }
 
 export async function enqueueJob(input: EnqueueJobInput): Promise<void> {
+  console.log('[QUEUE] job saved', input.type)
   await prisma.jobQueue.create({
     data: {
       workspaceId: input.workspaceId,
@@ -22,6 +23,7 @@ export async function enqueueJob(input: EnqueueJobInput): Promise<void> {
       status: 'pending',
     },
   })
+
 }
 
 export async function dequeueJob(): Promise<any | null> {
