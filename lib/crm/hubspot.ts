@@ -351,22 +351,21 @@ export class HubSpotAdapter implements CrmProvider {
   const secret = process.env.HUBSPOT_CLIENT_SECRET
   if (!secret) return false
 
-  // IMPORTANT: use EXACT url from request (do NOT rebuild it)
+  // ⚠️ MUST use EXACT raw request URL from HubSpot
+  const rawUrl = params.url
+
   const rawString =
     params.method +
-    params.url +
+    rawUrl +
     params.body +
     params.timestamp
 
   const expected = crypto
     .createHmac('sha256', secret)
     .update(rawString, 'utf8')
-    .digest('hex') // ✅ FIX HERE
+    .digest('hex')
 
-  // HubSpot signature is HEX in v3
-  const isValid = expected === params.signature
-
-  return isValid
+  return expected === params.signature
 }
   }
 }
