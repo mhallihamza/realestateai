@@ -23,6 +23,7 @@ interface LeadIngestPayload {
 }
 
 export async function processLeadIngestJob(payload: Record<string, unknown>): Promise<void> {
+  console.log('[LEAD INGEST] function ENTERED')
   const { workspaceId, objectId, webhookEventId, integrationId, source, eventType } =
     payload as unknown as LeadIngestPayload
 
@@ -50,7 +51,9 @@ export async function processLeadIngestJob(payload: Record<string, unknown>): Pr
     }
 
     // Fetch the contact from the external CRM
+    console.log('[LEAD INGEST] fetching contact for:', objectId)
     const contact = await crm.fetchContact(objectId)
+    console.log('[LEAD INGEST] contact received:', contact)
     console.log('[LEAD WORKER] started')
     if (!contact || !contact.properties) {
       console.error('[LEAD_INGEST] Contact not found in CRM', objectId)
