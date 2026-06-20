@@ -41,6 +41,8 @@ export async function POST(req: Request) {
     const { HubSpotAdapter } = await import('@/lib/crm/hubspot')
     const adapter = new HubSpotAdapter(integration)
     const webhookClient = adapter.getWebhookClient()
+    console.log("URL:", req.url)
+    console.log("BODY:", body)
     const isValid = webhookClient.validateSignature({
   method: req.method,
   url: req.url,
