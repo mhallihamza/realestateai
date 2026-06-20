@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { enqueueJob } from '@/lib/queue'
 import { logIntegrationActivity } from '@/lib/crm/activity-logger'
+import { processLeadIngestJob } from '@/lib/workers/lead-ingest-worker'
 
 /**
  * HubSpot Webhook endpoint
@@ -106,11 +107,12 @@ export async function POST(req: Request) {
         },
       })
 
-      // Enqueue processing job (async)
+      // Enqueue processing job (async) - keep queue for retry/backup
       await enqueueJob({
         workspaceId: integration.workspaceId,
         type: 'lead_ingest',
         payload: {
+          workspaceId: integration.workspaceId,
           source: 'hubspot',
           eventType,
           objectId: String(objectId),
@@ -118,6 +120,19 @@ export async function POST(req: Request) {
           integrationId: integration.id,
         },
         priority: 2,
+      })
+
+      // Process inline immediately so Lead is created right away
+      // This ensures leads are created even without a worker poller running
+      processLeadIngestJob({
+        workspaceId: integration.workspaceId,
+        source: 'hubspot',
+        eventType,
+        objectId: String(objectId),
+        webhookEventId: webhookEvent.id,
+        integrationId: integration.id,
+      }).catch((err) => {
+        console.error('[HUBSPOT_WEBHOOK] Inline lead ingest failed (queue backup exists):', err)
       })
 
       processedIds.push(webhookEvent.id)
