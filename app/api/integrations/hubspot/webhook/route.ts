@@ -80,19 +80,19 @@ export async function POST(req: Request) {
       const eventType = event.subscriptionType || event.eventType || 'unknown'
       const objectId = event.objectId || event.object_id
       // HubSpot includes an eventId field in each webhook payload entry for idempotency
-      const eventId = event.eventId || event.event_id || null
+      const eventId = event.eventId ? String(event.eventId) : null
 
       // ── IDEMPOTENCY CHECK ──────────────────────────────────────────────
       // Skip if a WebhookEvent with this HubSpot eventId already exists
       if (eventId) {
-        const existingEvent = await prisma.webhookEvent.findUnique({
-          where: { eventId },
-        })
-        if (existingEvent) {
-          console.log(`[HUBSPOT_WEBHOOK] Duplicate eventId ${eventId} skipped (already processed)`)
-          continue
-        }
-      }
+  const existingEvent = await prisma.webhookEvent.findUnique({
+    where: { eventId: String(eventId) },
+  })
+  if (existingEvent) {
+    console.log(`[HUBSPOT_WEBHOOK] Duplicate eventId ${eventId} skipped (already processed)`)
+    continue
+  }
+}
 
       // Log webhook received
       await logIntegrationActivity(
