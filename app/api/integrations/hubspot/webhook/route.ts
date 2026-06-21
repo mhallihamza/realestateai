@@ -122,6 +122,7 @@ export async function POST(req: Request) {
           processed: false,
         },
       })
+      cosnole.log("fun");
       console.log('[WEBHOOK] enqueuing lead_ingest for', String(objectId))
 
       // Build the job payload — workspaceId is ALWAYS included for every event type
