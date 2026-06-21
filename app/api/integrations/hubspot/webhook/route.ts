@@ -125,6 +125,7 @@ export async function POST(req: Request) {
 
       // Process inline immediately so Lead is created right away
       // This ensures leads are created even without a worker poller running
+      console.log('[LEAD INGEST] before lead created:')
       processLeadIngestJob({
         workspaceId: integration.workspaceId,
         source: 'hubspot',
@@ -135,7 +136,7 @@ export async function POST(req: Request) {
       }).catch((err) => {
         console.error('[HUBSPOT_WEBHOOK] Inline lead ingest failed (queue backup exists):', err)
       })
-
+      console.log('[LEAD INGEST] lead created:')
       processedIds.push(webhookEvent.id)
     }
 
