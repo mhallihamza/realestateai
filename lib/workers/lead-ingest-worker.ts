@@ -110,7 +110,7 @@ export async function processLeadIngestJob(payload: Record<string, unknown>): Pr
         }
 
         await markWebhookEventError(webhookEventId, 'HubSpot token expired — will retry after refresh')
-        return
+        throw new Error('TOKEN_EXPIRED_RETRY_LATER')
       }
       // Other errors propagate normally
       throw err
