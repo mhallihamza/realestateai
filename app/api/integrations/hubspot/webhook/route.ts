@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { enqueueJob } from '@/lib/queue'
 import { logIntegrationActivity } from '@/lib/crm/activity-logger'
-import { processLeadIngestJob } from '@/lib/workers/lead-ingest-worker'
 
 /**
  * HubSpot Webhook endpoint
@@ -10,6 +9,7 @@ import { processLeadIngestJob } from '@/lib/workers/lead-ingest-worker'
  * Receives webhook events from HubSpot (contact.created, contact.updated, etc.)
  * Validates signature, creates event record, and enqueues processing job.
  * Does NOT execute heavy AI/CRM work inside the webhook request.
+ * Lead ingestion is handled asynchronously by the queue worker.
  */
 export async function POST(req: Request) {
   try {
@@ -73,8 +73,8 @@ export async function POST(req: Request) {
       events = [events]
     }
 
-    // Process each event - don't do heavy work here
-    const processedIds: string[] = []
+    // Enqueue each contact event for async processing (no inline execution)
+    const enqueuedIds: string[] = []
 
     for (const event of events) {
       const eventType = event.subscriptionType || event.eventType || 'unknown'
@@ -107,8 +107,8 @@ export async function POST(req: Request) {
           processed: false,
         },
       })
-      console.log('[WEBHOOK] about to trigger lead pipeline')
-      // Enqueue processing job (async) - keep queue for retry/backup
+      console.log('[WEBHOOK] enqueuing lead_ingest for', String(objectId))
+      // Enqueue processing job (async) - single execution path via queue worker
       await enqueueJob({
         workspaceId: integration.workspaceId,
         type: 'lead_ingest',
@@ -123,27 +123,13 @@ export async function POST(req: Request) {
         priority: 2,
       })
 
-      // Process inline immediately so Lead is created right away
-      // This ensures leads are created even without a worker poller running
-      console.log('[LEAD INGEST] before lead created:')
-      processLeadIngestJob({
-        workspaceId: integration.workspaceId,
-        source: 'hubspot',
-        eventType,
-        objectId: String(objectId),
-        webhookEventId: webhookEvent.id,
-        integrationId: integration.id,
-      }).catch((err) => {
-        console.error('[HUBSPOT_WEBHOOK] Inline lead ingest failed (queue backup exists):', err)
-      })
-      console.log('[LEAD INGEST] lead created:')
-      processedIds.push(webhookEvent.id)
+      enqueuedIds.push(webhookEvent.id)
     }
 
     return NextResponse.json({
       received: true,
-      processed: processedIds.length,
-      webhookEventIds: processedIds,
+      enqueued: enqueuedIds.length,
+      webhookEventIds: enqueuedIds,
     })
   } catch (error: any) {
     console.error('[HUBSPOT_WEBHOOK_ERROR]', error)
