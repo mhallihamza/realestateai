@@ -3,6 +3,10 @@
  * 
  * Implements CrmProvider interface for HubSpot.
  * Handles OAuth flow, contact sync, notes, webhook validation.
+ * 
+ * IMPORTANT: Token refresh is NEVER done in the request path.
+ * fetchContact() uses the current token only. If expired, it throws
+ * a specific error and the caller should enqueue a refresh job.
  */
 
 import { prisma } from '@/lib/prisma'
@@ -39,77 +43,74 @@ export class HubSpotAdapter implements CrmProvider {
     this.integrationId = integration.id
   }
 
+  /**
+   * Returns a client with a `request` method.
+   * Uses the current token directly — NEVER refreshes.
+   * If the token is expired, the HubSpot API returns 401 and the caller
+   * handles it by enqueueing a background refresh job.
+   */
   private getClient() {
     return {
       request: async (method: string, path: string, body?: any) => {
-  await this.ensureValidToken()
+        const controller = new AbortController()
+        const timeout = setTimeout(() => {
+          controller.abort()
+        }, 15000)
 
-  const controller = new AbortController()
+        try {
+          console.log('[HUBSPOT REQUEST] →', method, path)
 
-  const timeout = setTimeout(() => {
-    controller.abort()
-  }, 8000) // 8 seconds timeout
+          const response = await fetch(`${HUBSPOT_API_BASE}${path}`, {
+            method,
+            headers: {
+              Authorization: `Bearer ${this.accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: body ? JSON.stringify(body) : undefined,
+            signal: controller.signal,
+          })
 
-  try {
-    console.log('[HUBSPOT REQUEST] →', method, path)
+          clearTimeout(timeout)
 
-    const response = await fetch(`${HUBSPOT_API_BASE}${path}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${this.accessToken}`,
-        'Content-Type': 'application/json',
+          // If 401, throw specific error — caller enqueues refresh job, does NOT block
+          if (response.status === 401) {
+            throw new Error('TOKEN_EXPIRED')
+          }
+
+          const text = await response.text()
+
+          if (!response.ok) {
+            console.error('[HUBSPOT API ERROR]', {
+              status: response.status,
+              body: text,
+              path,
+            })
+            throw new Error(`HubSpot API error (${response.status}): ${text}`)
+          }
+
+          try {
+            return JSON.parse(text)
+          } catch {
+            return text
+          }
+
+        } catch (err: any) {
+          clearTimeout(timeout)
+
+          // Re-throw TOKEN_EXPIRED as-is so callers can handle it specifically
+          if (err.message === 'TOKEN_EXPIRED') {
+            throw err
+          }
+
+          console.error('[HUBSPOT REQUEST FAILED]', {
+            message: err.message,
+            name: err.name,
+            path,
+          })
+
+          throw err
+        }
       },
-      body: body ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-    })
-
-    clearTimeout(timeout)
-
-    const text = await response.text()
-
-    if (!response.ok) {
-      console.error('[HUBSPOT API ERROR]', {
-        status: response.status,
-        body: text,
-        path,
-      })
-
-      throw new Error(`HubSpot API error (${response.status}): ${text}`)
-    }
-
-    // safely parse JSON
-    try {
-      return JSON.parse(text)
-    } catch {
-      return text
-    }
-
-  } catch (err: any) {
-    clearTimeout(timeout)
-
-    console.error('[HUBSPOT REQUEST FAILED]', {
-      message: err.message,
-      name: err.name,
-      path,
-    })
-
-    throw err
-  }
-},
-    }
-  }
-
-  private async ensureValidToken(): Promise<void> {
-    if (!this.expiresAt || new Date() >= this.expiresAt) {
-      console.log('[HUBSPOT ENSURE TOKEN] token expired or missing, refreshing...', {
-        expiresAt: this.expiresAt?.toISOString(),
-        hasRefreshToken: !!this.refreshToken,
-      })
-      const refreshed = await this.refreshAccessToken()
-      if (!refreshed) {
-        throw new Error('HubSpot token expired and refresh failed')
-      }
-      console.log('[HUBSPOT ENSURE TOKEN] token refreshed successfully')
     }
   }
 
@@ -124,7 +125,7 @@ export class HubSpotAdapter implements CrmProvider {
         } 
       }
     } catch (error: any) {
-      return { ok: false, error: error.message }
+      return { ok: false, error: error.message === 'TOKEN_EXPIRED' ? 'Token expired' : error.message }
     }
   }
 
@@ -133,7 +134,6 @@ export class HubSpotAdapter implements CrmProvider {
       const client = this.getClient()
 
       if (lead.crmId && lead.crmSource === 'hubspot') {
-        // Update existing
         await client.request('PATCH', `/crm/v3/objects/contacts/${lead.crmId}`, {
           properties: {
             hs_lead_status: lead.status || 'NEW',
@@ -151,7 +151,6 @@ export class HubSpotAdapter implements CrmProvider {
         return { success: true, externalId: lead.crmId }
       }
 
-      // Create new contact
       const nameParts = (lead.name || 'Unknown Lead').split(' ')
       const contact = await client.request('POST', '/crm/v3/objects/contacts', {
         properties: {
@@ -222,14 +221,17 @@ export class HubSpotAdapter implements CrmProvider {
       const result = await client.request('GET', `/crm/v3/objects/contacts/${objectId}?properties=firstname,lastname,email,phone`)
       return result || null
     } catch (error: any) {
-  console.error('[HUBSPOT_FETCH_CONTACT_ERROR FULL]', {
-    message: error.message,
-    status: error.status,
-    objectId,
-  })
-
-  throw error
-}
+      // Re-throw TOKEN_EXPIRED so the caller can schedule a background refresh
+      if (error.message === 'TOKEN_EXPIRED') {
+        throw error
+      }
+      console.error('[HUBSPOT_FETCH_CONTACT_ERROR FULL]', {
+        message: error.message,
+        status: error.status,
+        objectId,
+      })
+      throw error
+    }
   }
 
   async fetchRecent(since?: Date, page?: string): Promise<CrmFetchResult> {
@@ -269,6 +271,11 @@ export class HubSpotAdapter implements CrmProvider {
     }
   }
 
+  /**
+   * Refreshes the OAuth token.
+   * Called ONLY by the background refresh worker, never from request path.
+   * Single-flight guarantee: callers check integration.refreshLock before calling.
+   */
   async refreshAccessToken(): Promise<boolean> {
     if (!this.refreshToken) return false
 
@@ -283,9 +290,7 @@ export class HubSpotAdapter implements CrmProvider {
       const controller = new AbortController()
       const timeout = setTimeout(() => {
         controller.abort()
-      }, 10000) // 10 second timeout for token refresh
-
-      console.log('[HUBSPOT REFRESH] attempting token refresh')
+      }, 10000)
 
       const response = await fetch(HUBSPOT_TOKEN_BASE, {
         method: 'POST',
@@ -297,13 +302,10 @@ export class HubSpotAdapter implements CrmProvider {
       clearTimeout(timeout)
 
       if (!response.ok) {
-        console.error('[HUBSPOT REFRESH] token refresh failed with status', response.status)
-        await logIntegrationActivity(this.workspaceId, this.integrationId, 'hubspot', 'token_expired', 'HubSpot token refresh failed')
         return false
       }
 
       const data = await response.json()
-      console.log('[HUBSPOT REFRESH] token refreshed successfully')
 
       const expiresAt = new Date(Date.now() + (data.expires_in || 3600) * 1000)
 
@@ -321,14 +323,8 @@ export class HubSpotAdapter implements CrmProvider {
       this.refreshToken = data.refresh_token || this.refreshToken
       this.expiresAt = expiresAt
 
-      await logIntegrationActivity(this.workspaceId, this.integrationId, 'hubspot', 'token_refreshed', 'HubSpot token refreshed successfully')
-
       return true
     } catch (error: any) {
-      console.error('[HUBSPOT REFRESH] token refresh error:', {
-        message: error.message,
-        name: error.name,
-      })
       return false
     }
   }
@@ -341,7 +337,6 @@ export class HubSpotAdapter implements CrmProvider {
       scope: SCOPES,
       state,
     })
-    console.log(redirectUri);
     return `${HUBSPOT_AUTH_BASE}?${params.toString()}`
   }
 
@@ -375,7 +370,6 @@ export class HubSpotAdapter implements CrmProvider {
     const data = await response.json()
     const expiresAt = new Date(Date.now() + (data.expires_in || 3600) * 1000)
 
-    // Fetch account info
     let accountId: string | undefined
     let accountName: string | undefined
     let email: string | undefined
@@ -400,31 +394,32 @@ export class HubSpotAdapter implements CrmProvider {
       email,
     }
   }
-getWebhookClient() {
-  return {
-    validateSignature: (params: {
-      method: string
-      url: string
-      body: string
-      timestamp: number
-      signature: string
-    }) => {
-      const secret = process.env.HUBSPOT_CLIENT_SECRET
 
-      if (!secret) return false
+  getWebhookClient() {
+    return {
+      validateSignature: (params: {
+        method: string
+        url: string
+        body: string
+        timestamp: number
+        signature: string
+      }) => {
+        const secret = process.env.HUBSPOT_CLIENT_SECRET
 
-      return Signature.isValid({
-        signatureVersion: 'v3',
-        signature: params.signature,
-        method: params.method,
-        clientSecret: secret,
-        requestBody: params.body,
-        url: params.url,
-        timestamp: params.timestamp,
-      })
-    },
+        if (!secret) return false
+
+        return Signature.isValid({
+          signatureVersion: 'v3',
+          signature: params.signature,
+          method: params.method,
+          clientSecret: secret,
+          requestBody: params.body,
+          url: params.url,
+          timestamp: params.timestamp,
+        })
+      },
+    }
   }
-}
 }
 
 export default HubSpotAdapter

@@ -124,6 +124,11 @@ export async function processJob(job: any): Promise<void> {
       await processLeadIngestJob(payload)
       break
 
+    case 'hubspot_refresh_token':
+      const { processHubSpotRefreshJob } = await import('./workers/hubspot-refresh-worker')
+      await processHubSpotRefreshJob(payload)
+      break
+
     default:
       console.warn(`Unknown job type: ${job.type}`)
   }

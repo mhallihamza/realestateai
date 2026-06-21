@@ -20,6 +20,7 @@ export type JobType =
   | 'lead_ingest'
   | 'memory_extraction'
   | 'notification_dispatch'
+  | 'hubspot_refresh_token'
 export type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 export type HandoffStatus = 'pending' | 'notified' | 'accepted' | 'resolved'
 export type EngagementEventType =

@@ -4,14 +4,17 @@
  * Handles inbound lead ingestion from external CRM systems (e.g. HubSpot).
  * When a contact is created/updated in the external CRM, this worker:
  * 1. Fetches the contact data from the CRM via the provider adapter
- * 2. Maps CRM fields to local Lead fields
- * 3. Upserts the Lead in the local database
- * 4. Marks the WebhookEvent as processed
+ * 2. If HubSpot token is expired, enqueues a background refresh job
+ *    and marks the webhook event for retry — lead creation is NOT blocked
+ * 3. Maps CRM fields to local Lead fields
+ * 4. Upserts the Lead in the local database
+ * 5. Marks the WebhookEvent as processed
  */
 
 import { prisma } from '@/lib/prisma'
 import { getCrmProvider } from '@/lib/crm/registry'
 import { logIntegrationActivity } from '@/lib/crm/activity-logger'
+import { enqueueJob } from '@/lib/queue'
 
 interface LeadIngestPayload {
   workspaceId: string
@@ -52,9 +55,39 @@ export async function processLeadIngestJob(payload: Record<string, unknown>): Pr
 
     // Fetch the contact from the external CRM
     console.log('[LEAD INGEST] fetching contact for:', objectId)
-    const contact = await crm.fetchContact(objectId)
+    let contact: any
+    try {
+      contact = await crm.fetchContact(objectId)
+    } catch (err: any) {
+      // If token expired, enqueue background refresh and mark for retry
+      // Lead creation is NOT blocked — we'll log and retry later
+      if (err.message === 'TOKEN_EXPIRED') {
+        console.log('[LEAD INGEST] token expired, enqueuing background refresh')
+        
+        // Single-flight: only enqueue if no pending refresh job exists for this integration
+        const existingRefreshJob = await prisma.jobQueue.findFirst({
+          where: {
+            type: 'hubspot_refresh_token',
+            status: 'pending',
+          },
+        })
+        if (!existingRefreshJob) {
+          await enqueueJob({
+            workspaceId,
+            type: 'hubspot_refresh_token',
+            payload: { integrationId },
+            priority: 1,
+          })
+        }
+
+        await markWebhookEventError(webhookEventId, 'HubSpot token expired — will retry after refresh')
+        return
+      }
+      // Other errors propagate normally
+      throw err
+    }
+
     console.log('[LEAD INGEST] contact received:', contact)
-    console.log('[LEAD WORKER] started')
     if (!contact || !contact.properties) {
       console.error('[LEAD_INGEST] Contact not found in CRM', objectId)
       await logIntegrationActivity(
@@ -92,8 +125,7 @@ export async function processLeadIngestJob(payload: Record<string, unknown>): Pr
       return
     }
 
-    // Resolve a valid userId from workspace members (follow existing patterns)
-    console.log('[LEAD WORKER] about to create lead', payload)
+    // Resolve a valid userId from workspace members
     const defaultMember = await prisma.workspaceMember.findFirst({
       where: { workspaceId },
     })
