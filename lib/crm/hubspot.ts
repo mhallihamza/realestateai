@@ -4,9 +4,12 @@
  * Implements CrmProvider interface for HubSpot.
  * Handles OAuth flow, contact sync, notes, webhook validation.
  * 
- * IMPORTANT: Token refresh is NEVER done in the request path.
- * fetchContact() uses the current token only. If expired, it throws
- * a specific error and the caller should enqueue a refresh job.
+ * Token refresh: fetchContact() attempts an inline, single-flight-locked
+ * refresh-and-retry when it hits an expired token, so most requests
+ * self-heal within the same call (no waiting for cron). If another
+ * request is already refreshing, or the refresh itself fails, it falls
+ * back to throwing TOKEN_EXPIRED_RETRY_LATER so the caller can enqueue
+ * an async refresh job as a safety net.
  */
 
 import { prisma } from '@/lib/prisma'
@@ -22,6 +25,36 @@ const HUBSPOT_TOKEN_BASE = 'https://api.hubapi.com/oauth/v1/token'
 const CLIENT_ID = process.env.HUBSPOT_CLIENT_ID || ''
 const CLIENT_SECRET = process.env.HUBSPOT_CLIENT_SECRET || ''
 const SCOPES = 'tickets crm.objects.line_items.read oauth crm.objects.companies.read crm.objects.contacts.read'
+
+const REFRESH_LOCK_STALE_MS = 15000 // a lock older than this is treated as abandoned (e.g. crashed process)
+const REFRESH_LOCK_WAIT_MS = 2000   // how long to wait for another request's in-flight refresh
+
+/**
+ * Atomically acquires a single-flight lock for refreshing this integration's token.
+ * Safe under concurrent serverless invocations: Postgres row-level locking on the
+ * UPDATE ensures only one caller can win the lock at a time.
+ */
+async function acquireRefreshLock(integrationId: string): Promise<boolean> {
+  const now = new Date()
+  const staleBefore = new Date(now.getTime() - REFRESH_LOCK_STALE_MS)
+
+  const result = await prisma.integration.updateMany({
+    where: {
+      id: integrationId,
+      OR: [{ refreshLockedAt: null }, { refreshLockedAt: { lt: staleBefore } }],
+    },
+    data: { refreshLockedAt: now },
+  })
+
+  return result.count === 1
+}
+
+async function releaseRefreshLock(integrationId: string): Promise<void> {
+  await prisma.integration.update({
+    where: { id: integrationId },
+    data: { refreshLockedAt: null },
+  })
+}
 
 export class HubSpotAdapter implements CrmProvider {
   readonly provider = 'hubspot'
@@ -221,9 +254,8 @@ export class HubSpotAdapter implements CrmProvider {
       const result = await client.request('GET', `/crm/v3/objects/contacts/${objectId}?properties=firstname,lastname,email,phone`)
       return result || null
     } catch (error: any) {
-      // Re-throw TOKEN_EXPIRED so the caller can schedule a background refresh
       if (error.message === 'TOKEN_EXPIRED') {
-        throw error
+        return await this.handleExpiredTokenAndRetry(objectId)
       }
       console.error('[HUBSPOT_FETCH_CONTACT_ERROR FULL]', {
         message: error.message,
@@ -232,6 +264,53 @@ export class HubSpotAdapter implements CrmProvider {
       })
       throw error
     }
+  }
+
+  /**
+   * Called when a request hits an expired token. Tries to refresh inline
+   * (single-flight, locked) and retry the request once, so the lead gets
+   * created immediately instead of waiting for cron. Falls back to
+   * throwing TOKEN_EXPIRED_RETRY_LATER if the lock is busy or refresh fails,
+   * so the caller's existing background-refresh-job path still works as backup.
+   */
+  private async handleExpiredTokenAndRetry(objectId: string): Promise<any | null> {
+    const path = `/crm/v3/objects/contacts/${objectId}?properties=firstname,lastname,email,phone`
+    const acquired = await acquireRefreshLock(this.integrationId)
+
+    if (acquired) {
+      try {
+        const refreshed = await this.refreshAccessToken()
+        if (!refreshed) {
+          throw new Error('TOKEN_EXPIRED_RETRY_LATER')
+        }
+        const client = this.getClient()
+        const result = await client.request('GET', path)
+        return result || null
+      } finally {
+        await releaseRefreshLock(this.integrationId)
+      }
+    }
+
+    // Another request is already refreshing — wait briefly, then pick up
+    // the fresh token from the DB and retry once.
+    await new Promise((resolve) => setTimeout(resolve, REFRESH_LOCK_WAIT_MS))
+
+    const fresh = await prisma.integration.findUnique({ where: { id: this.integrationId } })
+    if (fresh?.accessToken && fresh.accessToken !== this.accessToken) {
+      this.accessToken = fresh.accessToken
+      try {
+        const client = this.getClient()
+        const result = await client.request('GET', path)
+        return result || null
+      } catch (retryError: any) {
+        if (retryError.message === 'TOKEN_EXPIRED') {
+          throw new Error('TOKEN_EXPIRED_RETRY_LATER')
+        }
+        throw retryError
+      }
+    }
+
+    throw new Error('TOKEN_EXPIRED_RETRY_LATER')
   }
 
   async fetchRecent(since?: Date, page?: string): Promise<CrmFetchResult> {
@@ -272,9 +351,10 @@ export class HubSpotAdapter implements CrmProvider {
   }
 
   /**
-   * Refreshes the OAuth token.
-   * Called ONLY by the background refresh worker, never from request path.
-   * Single-flight guarantee: callers check integration.refreshLock before calling.
+   * Refreshes the OAuth token. Called either inline (via
+   * handleExpiredTokenAndRetry, already lock-protected) or by the
+   * background refresh worker as a fallback. Does not lock itself —
+   * callers are responsible for locking via acquireRefreshLock().
    */
   async refreshAccessToken(): Promise<boolean> {
     if (!this.refreshToken) return false

@@ -356,6 +356,7 @@ model Integration {
   accessToken  String?
   refreshToken String?
   expiresAt    DateTime?
+  refreshLockedAt DateTime? // set while a token refresh is in progress, for single-flight locking
   hubspotAccountId String?
   hubspotAccountName String?
   hubspotEmail      String?

@@ -90,7 +90,7 @@ export async function processLeadIngestJob(payload: Record<string, unknown>): Pr
     } catch (err: any) {
       // If token expired, enqueue background refresh and mark for retry
       // Lead creation is NOT blocked — we'll log and retry later
-      if (err.message === 'TOKEN_EXPIRED') {
+       if (err.message === 'TOKEN_EXPIRED' || err.message === 'TOKEN_EXPIRED_RETRY_LATER') {
         console.log('[LEAD INGEST] token expired, enqueuing background refresh')
         
         // Single-flight: only enqueue if no pending refresh job exists for this integration
