@@ -23,6 +23,7 @@ export type ActivityEventType =
   | 'ingest_started'
   | 'ingest_completed'
   | 'ingest_failed'
+  | 'ingest_skipped'
 
 export async function logIntegrationActivity(
   workspaceId: string,

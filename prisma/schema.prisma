@@ -309,6 +309,7 @@ model WebhookEvent {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   source      String    // facebook, whatsapp, webform, hubspot
   eventType   String
+  eventId     String?   @unique // HubSpot eventId for idempotency (null for non-HubSpot sources)
   payload     String    // Stringified raw incoming body content
   processed   Boolean   @default(false)
   leadId      String?
@@ -316,6 +317,7 @@ model WebhookEvent {
   receivedAt  DateTime  @default(now())
 
   @@index([workspaceId, processed])
+  @@index([eventId])
 }
 
 // ─── HUMAN HANDOFF ────────────────────────────────────────────────────────────

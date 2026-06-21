@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { enqueueJob } from '@/lib/queue'
+import { enqueueJob, processJob, completeJob } from '@/lib/queue'
 import { logIntegrationActivity } from '@/lib/crm/activity-logger'
 
 /**
@@ -8,8 +8,8 @@ import { logIntegrationActivity } from '@/lib/crm/activity-logger'
  * 
  * Receives webhook events from HubSpot (contact.created, contact.updated, etc.)
  * Validates signature, creates event record, and enqueues processing job.
- * Does NOT execute heavy AI/CRM work inside the webhook request.
- * Lead ingestion is handled asynchronously by the queue worker.
+ * Also attempts inline processing so leads appear instantly, not on next cron tick.
+ * If inline processing fails, the enqueued job remains as a durable fallback/retry.
  */
 export async function POST(req: Request) {
   try {
@@ -73,12 +73,26 @@ export async function POST(req: Request) {
       events = [events]
     }
 
-    // Enqueue each contact event for async processing (no inline execution)
+    // Enqueue each contact event for async processing (with inline fallback)
     const enqueuedIds: string[] = []
 
     for (const event of events) {
       const eventType = event.subscriptionType || event.eventType || 'unknown'
       const objectId = event.objectId || event.object_id
+      // HubSpot includes an eventId field in each webhook payload entry for idempotency
+      const eventId = event.eventId || event.event_id || null
+
+      // ── IDEMPOTENCY CHECK ──────────────────────────────────────────────
+      // Skip if a WebhookEvent with this HubSpot eventId already exists
+      if (eventId) {
+        const existingEvent = await prisma.webhookEvent.findUnique({
+          where: { eventId },
+        })
+        if (existingEvent) {
+          console.log(`[HUBSPOT_WEBHOOK] Duplicate eventId ${eventId} skipped (already processed)`)
+          continue
+        }
+      }
 
       // Log webhook received
       await logIntegrationActivity(
@@ -87,7 +101,7 @@ export async function POST(req: Request) {
         'hubspot',
         'webhook_received',
         `HubSpot webhook: ${eventType} - Object: ${objectId}`,
-        { eventType, objectId, event }
+        { eventType, objectId, eventId, event }
       )
 
       // Only process contact creation/update events; ignore others (deals, tickets, etc.)
@@ -103,25 +117,52 @@ export async function POST(req: Request) {
           workspaceId: integration.workspaceId,
           source: 'hubspot',
           eventType,
+          eventId, // store HubSpot eventId for idempotency
           payload: JSON.stringify(event),
           processed: false,
         },
       })
       console.log('[WEBHOOK] enqueuing lead_ingest for', String(objectId))
-      // Enqueue processing job (async) - single execution path via queue worker
-      await enqueueJob({
+
+      // Build the job payload — workspaceId is ALWAYS included for every event type
+      const jobPayload = {
+        workspaceId: integration.workspaceId,
+        source: 'hubspot',
+        eventType,
+        objectId: String(objectId),
+        webhookEventId: webhookEvent.id,
+        integrationId: integration.id,
+      }
+
+      // Enqueue processing job (async) - durable fallback/audit trail
+      const jobId = await enqueueJob({
         workspaceId: integration.workspaceId,
         type: 'lead_ingest',
-        payload: {
-          workspaceId: integration.workspaceId,
-          source: 'hubspot',
-          eventType,
-          objectId: String(objectId),
-          webhookEventId: webhookEvent.id,
-          integrationId: integration.id,
-        },
+        payload: jobPayload,
         priority: 2,
       })
+
+      // ── INLINE PROCESSING ──────────────────────────────────────────────
+      // Attempt to process immediately so leads appear instantly.
+      // Wrapped in try/catch so a failure does NOT throw and break the webhook response.
+      // If inline processing succeeds, mark the job completed so the cron poller skips it.
+      // If it throws, leave the job pending so the cron poller picks it up and retries.
+      try {
+        // Reconstruct a minimal job-like object for processJob
+        const inlineJob = {
+          id: webhookEvent.id,
+          type: 'lead_ingest',
+          payload: JSON.stringify(jobPayload),
+        }
+        await processJob(inlineJob)
+        // If successful, mark the enqueued job as completed so cron skips it
+        await completeJob(jobId)
+        console.log(`[WEBHOOK] Inline processing succeeded for ${objectId}`)
+      } catch (inlineError: any) {
+        // Inline processing failed — do NOT throw. The enqueued job remains pending
+        // and the cron poller will pick it up and retry via failJob() exponential backoff.
+        console.warn(`[WEBHOOK] Inline processing failed for ${objectId}, will rely on cron: ${inlineError.message}`)
+      }
 
       enqueuedIds.push(webhookEvent.id)
     }

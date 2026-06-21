@@ -10,9 +10,9 @@ export interface EnqueueJobInput {
   maxAttempts?: number
 }
 
-export async function enqueueJob(input: EnqueueJobInput): Promise<void> {
+export async function enqueueJob(input: EnqueueJobInput): Promise<string> {
   console.log('[QUEUE] job saved', input.type)
-  await prisma.jobQueue.create({
+  const job = await prisma.jobQueue.create({
     data: {
       workspaceId: input.workspaceId,
       type: input.type,
@@ -23,7 +23,7 @@ export async function enqueueJob(input: EnqueueJobInput): Promise<void> {
       status: 'pending',
     },
   })
-
+  return job.id
 }
 
 export async function dequeueJob(): Promise<any | null> {

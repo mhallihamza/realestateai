@@ -270,6 +270,7 @@ export interface WebhookEvent {
   workspaceId: string
   source: string
   eventType: string
+  eventId?: string | null
   payload: string
   processed: boolean
   leadId?: string | null

@@ -36,6 +36,35 @@ export async function processLeadIngestJob(payload: Record<string, unknown>): Pr
     return
   }
 
+  // ── EARLY SKIP FOR CONTACT DELETION ──────────────────────────────────
+  // Deleted contacts should not be ingested as leads. Mark the webhook event
+  // as processed with a clear note, rather than treating it as a validation error.
+  if (eventType === 'contact.deletion') {
+    console.log(`[LEAD_INGEST] Skipping contact.deletion for objectId=${objectId} — not ingesting deleted contacts`)
+    if (webhookEventId) {
+      try {
+        await prisma.webhookEvent.update({
+          where: { id: webhookEventId },
+          data: {
+            processed: true,
+            error: null,
+          },
+        })
+      } catch (e) {
+        console.error('[LEAD_INGEST] Failed to mark deletion webhook event as processed', e)
+      }
+    }
+    await logIntegrationActivity(
+      workspaceId,
+      integrationId,
+      source || 'hubspot',
+      'ingest_skipped',
+      `Skipped contact.deletion for ${objectId} — deleted contacts are not ingested`,
+      { webhookEventId, objectId, eventType }
+    ).catch(() => {})
+    return
+  }
+
   try {
     // Get the CRM provider adapter
     const crm = await getCrmProvider(workspaceId, source || 'hubspot')
