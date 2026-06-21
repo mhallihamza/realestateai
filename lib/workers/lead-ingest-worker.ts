@@ -82,8 +82,6 @@ export async function processLeadIngestJob(payload: Record<string, unknown>): Pr
       return
     }
 
-    // Fetch the contact from the external CRM
-    console.log('[LEAD INGEST] fetching contact for:', objectId)
     let contact: any
     try {
       contact = await crm.fetchContact(objectId)
