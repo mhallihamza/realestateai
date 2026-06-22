@@ -104,6 +104,7 @@ export async function sendWhatsAppTemplate(
 export async function handleWhatsAppInbound(payload: WhatsAppInboundPayload): Promise<{ leadId: string; message: string; workspaceId: string } | null> {
   try {
     const phone = payload.from.replace('whatsapp:', '').trim()
+    console.log(`[DEBUG] Raw from: "${payload.from}" → after replace: "${phone}"`) // ADD THIS
     const normalizedPhone = phone.startsWith('+') ? phone : `+${phone}`
 
     // Find lead by phone number
