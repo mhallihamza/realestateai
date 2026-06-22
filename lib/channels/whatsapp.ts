@@ -103,26 +103,102 @@ export async function sendWhatsAppTemplate(
 
 export async function handleWhatsAppInbound(payload: WhatsAppInboundPayload): Promise<{ leadId: string; message: string; workspaceId: string } | null> {
   try {
-    const phone = payload.from.replace('whatsapp:', '')
+    const phone = payload.from.replace('whatsapp:', '').trim()
+    const normalizedPhone = phone.startsWith('+') ? phone : `+${phone}`
 
     // Find lead by phone number
-    const lead = await prisma.lead.findFirst({
-      where: { phone },
+    let lead = await prisma.lead.findFirst({
+      where: { phone: normalizedPhone },
       include: { workspace: true },
     })
 
+    // Auto-create lead if not found
     if (!lead) {
-      console.warn(`[WHATSAPP_INBOUND] No lead found for phone: ${phone}`)
-      return null
+      console.log(`[WHATSAPP_INBOUND] No lead found for phone: ${normalizedPhone}, creating new lead...`)
+
+      const workspace = await prisma.workspace.findFirst()
+
+      if (!workspace) {
+        console.error('[WHATSAPP_INBOUND] No workspace found — complete onboarding first')
+        return null
+      }
+
+      // Get any user in the workspace to satisfy required userId
+      const member = await prisma.workspaceMember.findFirst({
+        where: { workspaceId: workspace.id },
+      })
+
+      if (!member) {
+        console.error('[WHATSAPP_INBOUND] No workspace member found')
+        return null
+      }
+
+      const createdLead = await prisma.lead.create({
+        data: {
+          workspaceId: workspace.id,
+          userId: member.userId,
+          name: payload.profileName || `WhatsApp ${normalizedPhone}`,
+          phone: normalizedPhone,
+          email: `${normalizedPhone.replace('+', '')}@whatsapp.placeholder`,
+          status: 'New',
+          aiAgentActive: true,
+        },
+      })
+
+      // Re-fetch with workspace included to match type
+      lead = await prisma.lead.findUnique({
+        where: { id: createdLead.id },
+        include: { workspace: true },
+      })
+
+      if (!lead) {
+        console.error('[WHATSAPP_INBOUND] Failed to fetch created lead')
+        return null
+      }
+
+      console.log(`[WHATSAPP_INBOUND] New lead created: ${lead.id} (${lead.name})`)
     }
 
-    // Log inbound message
+    // Find or create conversation
+    let conversation = await prisma.conversation.findFirst({
+      where: {
+        leadId: lead.id,
+        channel: 'whatsapp',
+        status: { in: ['active', 'paused'] },
+      },
+    })
+
+    if (!conversation) {
+      conversation = await prisma.conversation.create({
+        data: {
+          workspaceId: lead.workspaceId,
+          leadId: lead.id,
+          channel: 'whatsapp',
+          status: 'active',
+        },
+      })
+    }
+
+    // Log inbound message to conversation
+    await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: 'user',
+        content: payload.body,
+        channel: 'whatsapp',
+        externalId: payload.messageId,
+      },
+    })
+
+    // Log to WhatsAppMessage table
     await prisma.whatsAppMessage.create({
       data: {
         workspaceId: lead.workspaceId,
         leadId: lead.id,
+        conversationId: conversation.id,
         direction: 'inbound',
         body: payload.body,
+        twilioSid: payload.messageId,
         status: 'received',
       },
     })
@@ -147,7 +223,6 @@ export async function handleWhatsAppInbound(payload: WhatsAppInboundPayload): Pr
     return null
   }
 }
-
 export async function handleWhatsAppStatus(payload: WhatsAppStatusPayload): Promise<void> {
   try {
     const message = await prisma.whatsAppMessage.findUnique({
