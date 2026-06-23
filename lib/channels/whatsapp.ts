@@ -1,3 +1,4 @@
+import twilio from 'twilio'
 import { prisma } from '@/lib/prisma'
 import type { Lead, MessageResult, WhatsAppInboundPayload, WhatsAppStatusPayload, WhatsAppButton, WhatsAppListSection } from '@/types'
 
@@ -14,40 +15,31 @@ function getTwilioClient() {
   return twilio(twilioAccountSid, twilioAuthToken)
 }
 
-export async function sendWhatsAppText(lead: Lead, body: string): Promise<MessageResult> {
+export async function sendWhatsAppText(to: string, body: string): Promise<boolean> {
   try {
-    const client = getTwilioClient()
-    const to = `whatsapp:${lead.phone}`
-    const from = `whatsapp:${twilioWhatsAppNumber}`
+    const accountSid = process.env.TWILIO_ACCOUNT_SID
+    const authToken = process.env.TWILIO_AUTH_TOKEN
+    const from = process.env.TWILIO_WHATSAPP_NUMBER
 
-    const message = await client.messages.create({ from, to, body })
+    if (!accountSid || !authToken || !from) {
+      console.error('[WHATSAPP_SEND_ERROR] Twilio credentials not configured')
+      return false
+    }
 
-    // Log to WhatsAppMessage model
-    await prisma.whatsAppMessage.create({
-      data: {
-        workspaceId: lead.workspaceId,
-        leadId: lead.id,
-        direction: 'outbound',
-        body,
-        status: 'sent',
-        twilioSid: message.sid,
-      },
+    const toFormatted = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`
+
+    const client = twilio(accountSid, authToken)
+    const message = await client.messages.create({
+      from,
+      to: toFormatted,
+      body,
     })
 
-    return {
-      success: true,
-      externalId: message.sid,
-      status: 'sent',
-      channel: 'whatsapp',
-    }
-  } catch (error: any) {
+    console.log(`[WHATSAPP_SENT] SID: ${message.sid} → ${toFormatted}`)
+    return true
+  } catch (error) {
     console.error('[WHATSAPP_SEND_ERROR]', error)
-    return {
-      success: false,
-      status: 'failed',
-      error: error.message || 'WhatsApp send failed',
-      channel: 'whatsapp',
-    }
+    return false
   }
 }
 
