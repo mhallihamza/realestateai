@@ -19,25 +19,32 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const contentType = req.headers.get('content-type') || ''
-    console.log(`[DEBUG] Content-Type: "${contentType}"`) // ADD THIS
+    console.log(`[DEBUG] Content-Type: "${contentType}"`)
+
+    const rawBody = await req.text()
+    console.log(`[DEBUG] Raw body start: "${rawBody.slice(0, 50)}"`)
+
     let from: string = ''
     let body: string = ''
     let messageId: string = ''
     let profileName: string | undefined
     let timestamp: number = Math.floor(Date.now() / 1000)
 
-    if (contentType.includes('application/x-www-form-urlencoded')) {
-      // ── Twilio format ──
-      const text = await req.text()
-      const params = new URLSearchParams(text)
+    const isTwilio = contentType.includes('application/x-www-form-urlencoded')
+      || rawBody.startsWith('From=')
+      || rawBody.startsWith('ExternalUs')
+      || rawBody.includes('MessageSid')
+
+    if (isTwilio) {
+      const params = new URLSearchParams(rawBody)
       from = params.get('From') || ''
       body = params.get('Body') || ''
       messageId = params.get('MessageSid') || ''
       profileName = params.get('ProfileName') || undefined
+      console.log(`[DEBUG] Twilio parsed - From: "${from}", Body: "${body}"`)
 
     } else {
-      // ── Meta Cloud API format ──
-      const json = await req.json()
+      const json = JSON.parse(rawBody)
       const value = json.entry?.[0]?.changes?.[0]?.value
 
       if (!value) return NextResponse.json({ status: 'ok' })
