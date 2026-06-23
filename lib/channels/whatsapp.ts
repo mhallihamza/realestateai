@@ -124,6 +124,14 @@ export async function handleWhatsAppInbound(payload: WhatsAppInboundPayload): Pr
       include: { workspace: true },
     })
 
+    // Update channel to whatsapp if not already set
+    if (lead && lead.channel !== 'whatsapp') {
+    await prisma.lead.update({
+    where: { id: lead.id },
+    data: { channel: 'whatsapp' }
+    })
+    lead = { ...lead, channel: 'whatsapp' }
+    }
     // Auto-create lead if not found
     if (!lead) {
       console.log(`[WHATSAPP_INBOUND] No lead found for phone: ${normalizedPhone}, creating new lead...`)
@@ -153,6 +161,7 @@ export async function handleWhatsAppInbound(payload: WhatsAppInboundPayload): Pr
           phone: normalizedPhone,
           email: `${normalizedPhone.replace('+', '')}@whatsapp.placeholder`,
           status: 'New',
+          channel: 'whatsapp', // ADD THIS
           aiAgentActive: true,
         },
       })

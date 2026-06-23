@@ -65,7 +65,8 @@ export async function processAIReplyJob(payload: Record<string, unknown>): Promi
     await appendMessage(conversation.id, 'assistant', decision.reply, channel as Channel)
 
     // Send via appropriate channel
-    const result = await dispatchMessage(typedLead, decision.channel as Channel || channel as Channel, decision.reply, {
+    const replyChannel = (channel as Channel) === 'whatsapp' ? 'whatsapp' : (decision.channel as Channel || channel as Channel)
+    const result = await dispatchMessage(typedLead, replyChannel, decision.reply, {
       subject: `Re: ${lead.name}'s inquiry`,
     })
 
