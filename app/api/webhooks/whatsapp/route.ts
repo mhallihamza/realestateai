@@ -19,6 +19,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const contentType = req.headers.get('content-type') || ''
+    console.log(`[DEBUG] Content-Type: "${contentType}"`) // ADD THIS
     let from: string = ''
     let body: string = ''
     let messageId: string = ''
