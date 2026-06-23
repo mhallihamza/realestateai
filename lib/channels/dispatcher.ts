@@ -21,7 +21,7 @@ export async function dispatchMessage(
       if (!lead.phone) {
         return { success: false, status: 'failed', error: 'No phone number for WhatsApp', channel: 'whatsapp' }
       }
-      return sendWhatsAppText(lead, content)
+      return sendWhatsAppText(lead.phone, content)
 
     case 'sms':
       if (!lead.phone) {

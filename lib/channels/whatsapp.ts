@@ -15,7 +15,10 @@ function getTwilioClient() {
   return twilio(twilioAccountSid, twilioAuthToken)
 }
 
-export async function sendWhatsAppText(to: string, body: string): Promise<boolean> {
+export async function sendWhatsAppText(
+  to: string,
+  body: string
+): Promise<MessageResult> {
   try {
     const accountSid = process.env.TWILIO_ACCOUNT_SID
     const authToken = process.env.TWILIO_AUTH_TOKEN
@@ -23,7 +26,12 @@ export async function sendWhatsAppText(to: string, body: string): Promise<boolea
 
     if (!accountSid || !authToken || !from) {
       console.error('[WHATSAPP_SEND_ERROR] Twilio credentials not configured')
-      return false
+      return {
+  success: false,
+  status: 'failed',
+  error: 'Twilio credentials not configured',
+  channel: 'whatsapp'
+}
     }
 
     const toFormatted = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`
@@ -36,11 +44,22 @@ export async function sendWhatsAppText(to: string, body: string): Promise<boolea
     })
 
     console.log(`[WHATSAPP_SENT] SID: ${message.sid} → ${toFormatted}`)
-    return true
-  } catch (error) {
-    console.error('[WHATSAPP_SEND_ERROR]', error)
-    return false
+    return {
+  success: true,
+  status: 'sent',
+  externalId: message.sid,
+  channel: 'whatsapp'
+}
+  } catch (error: any) {
+  console.error('[WHATSAPP_SEND_ERROR]', error)
+
+  return {
+    success: false,
+    status: 'failed',
+    error: error.message,
+    channel: 'whatsapp'
   }
+}
 }
 
 export async function sendWhatsAppTemplate(
