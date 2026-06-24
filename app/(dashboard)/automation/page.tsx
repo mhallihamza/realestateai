@@ -106,24 +106,99 @@ export default function AutomationPage() {
           </div>
         </div>
 
-        {[
-          { key: 'enableEmail', label: 'Email', desc: 'Send and receive via email' },
-          { key: 'enableSMS', label: 'SMS', desc: 'Text message follow-ups via Twilio' },
-          { key: 'enableWhatsApp', label: 'WhatsApp', desc: 'WhatsApp Business via Twilio' },
-        ].map(({ key, label, desc }) => (
-          <label key={key} className="flex items-center justify-between p-3 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer">
+        {/* WhatsApp */}
+        <div className="p-3 rounded-lg border border-gray-100 space-y-3">
+          <label className="flex items-center justify-between cursor-pointer">
             <div>
-              <p className="font-medium text-gray-900 text-sm">{label}</p>
-              <p className="text-xs text-gray-500">{desc}</p>
+              <p className="font-medium text-gray-900 text-sm">WhatsApp</p>
+              <p className="text-xs text-gray-500">WhatsApp Business via Twilio</p>
             </div>
             <input
               type="checkbox"
-              checked={config[key] ?? false}
-              onChange={(e) => setConfig({ ...config, [key]: e.target.checked })}
+              checked={config.enableWhatsApp ?? false}
+              onChange={(e) => setConfig({ ...config, enableWhatsApp: e.target.checked })}
               className="w-4 h-4 accent-blue-600"
             />
           </label>
-        ))}
+          {config.enableWhatsApp && (
+            <input
+              value={config.whatsappNumber || ''}
+              onChange={(e) => setConfig({ ...config, whatsappNumber: e.target.value })}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="whatsapp:+14155238886"
+            />
+          )}
+          {!config.enableWhatsApp && (
+            <input
+              value={config.whatsappNumber || ''}
+              disabled
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm opacity-50 cursor-not-allowed bg-gray-50"
+              placeholder="whatsapp:+14155238886"
+            />
+          )}
+        </div>
+
+        {/* SMS */}
+        <div className="p-3 rounded-lg border border-gray-100 space-y-3">
+          <label className="flex items-center justify-between cursor-pointer">
+            <div>
+              <p className="font-medium text-gray-900 text-sm">SMS</p>
+              <p className="text-xs text-gray-500">Text message follow-ups via Twilio</p>
+            </div>
+            <input
+              type="checkbox"
+              checked={config.enableSMS ?? false}
+              onChange={(e) => setConfig({ ...config, enableSMS: e.target.checked })}
+              className="w-4 h-4 accent-blue-600"
+            />
+          </label>
+          {config.enableSMS ? (
+            <input
+              value={config.smsNumber || ''}
+              onChange={(e) => setConfig({ ...config, smsNumber: e.target.value })}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="+14155238886"
+            />
+          ) : (
+            <input
+              value={config.smsNumber || ''}
+              disabled
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm opacity-50 cursor-not-allowed bg-gray-50"
+              placeholder="+14155238886"
+            />
+          )}
+        </div>
+
+        {/* Email */}
+        <div className="p-3 rounded-lg border border-gray-100 space-y-3">
+          <label className="flex items-center justify-between cursor-pointer">
+            <div>
+              <p className="font-medium text-gray-900 text-sm">Email</p>
+              <p className="text-xs text-gray-500">Send and receive via email</p>
+            </div>
+            <input
+              type="checkbox"
+              checked={config.enableEmail ?? false}
+              onChange={(e) => setConfig({ ...config, enableEmail: e.target.checked })}
+              className="w-4 h-4 accent-blue-600"
+            />
+          </label>
+          {config.enableEmail ? (
+            <input
+              value={config.emailFrom || ''}
+              onChange={(e) => setConfig({ ...config, emailFrom: e.target.value })}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="support@youragency.com"
+            />
+          ) : (
+            <input
+              value={config.emailFrom || ''}
+              disabled
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm opacity-50 cursor-not-allowed bg-gray-50"
+              placeholder="support@youragency.com"
+            />
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 card-shadow p-6 space-y-4">

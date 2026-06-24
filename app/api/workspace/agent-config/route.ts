@@ -34,6 +34,7 @@ export async function PATCH(req: Request) {
     'enableEmail', 'enableSMS', 'enableWhatsApp',
     'followUpHours24', 'followUpHours72', 'reactivateDays30',
     'systemPromptOverride',
+    'whatsappNumber', 'smsNumber', 'emailFrom',
   ]
 
   const data: Record<string, unknown> = {}

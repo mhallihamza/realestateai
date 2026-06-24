@@ -220,6 +220,9 @@ model AgentConfig {
   followUpHours72     Boolean  @default(true)
   reactivateDays30    Boolean  @default(true)
   systemPromptOverride String?
+  whatsappNumber       String?
+  smsNumber            String?
+  emailFrom            String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
