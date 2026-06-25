@@ -217,6 +217,8 @@ export async function sendForwardToAgent(
 ): Promise<void> {
   try {
     if (process.env.RESEND_API_KEY) {
+      console.log("Before send forwardtoagent");
+      console.log(agentEmail);
       await resend.emails.send({
         from: `DarLeads <leads@mypron8n.site>`,
         to: agentEmail,
