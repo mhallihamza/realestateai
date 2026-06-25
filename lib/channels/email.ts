@@ -219,12 +219,13 @@ export async function sendForwardToAgent(
     if (process.env.RESEND_API_KEY) {
       console.log("Before send forwardtoagent");
       console.log(agentEmail);
-      await resend.emails.send({
+      const result = await resend.emails.send({
         from: `DarLeads <leads@mypron8n.site>`,
         to: agentEmail,
         subject: `[New Lead] ${subject}`,
         text: `From: ${clientEmail}\n\n${message}`,
       })
+      console.log('[FORWARD_RESULT]', JSON.stringify(result))
     } else if (sendgridApiKey) {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const sgMail = require('@sendgrid/mail')
