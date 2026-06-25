@@ -1,8 +1,10 @@
 import { prisma } from '@/lib/prisma'
 import type { Lead, MessageResult } from '@/types'
+import { Resend } from 'resend'
 
 const sendgridApiKey = process.env.SENDGRID_API_KEY
 const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'ai@youragency.com'
+const resend = new Resend(process.env.RESEND_API_KEY ?? '')
 
 export async function sendEmail(
   lead: Lead,
@@ -11,6 +13,51 @@ export async function sendEmail(
   trackingEnabled = true
 ): Promise<MessageResult> {
   try {
+    // Fetch workspace config for from name and reply-to
+    const [workspace, config] = await Promise.all([
+      prisma.workspace.findUnique({
+        where: { id: lead.workspaceId },
+        select: { name: true },
+      }),
+      prisma.agentConfig.findUnique({
+        where: { workspaceId: lead.workspaceId },
+        select: { emailFrom: true },
+      }),
+    ])
+
+    // Priority 1: Resend
+    if (process.env.RESEND_API_KEY) {
+      const trackingId = trackingEnabled ? crypto.randomUUID() : undefined
+
+      await resend.emails.send({
+        from: `${workspace?.name ?? 'DarLeads'} <noreply@${process.env.RESEND_FROM_DOMAIN}>`,
+        replyTo: config?.emailFrom ?? undefined,
+        to: lead.email,
+        subject,
+        text: body,
+        html: body.replace(/\n/g, '<br/>'),
+      })
+
+      // Track email event
+      if (trackingId) {
+        await prisma.emailEvent.create({
+          data: {
+            leadId: lead.id,
+            type: 'sent',
+            trackingToken: trackingId,
+          },
+        })
+      }
+
+      return {
+        success: true,
+        externalId: trackingId,
+        status: 'sent',
+        channel: 'email',
+      }
+    }
+
+    // Priority 2: SendGrid
     if (!sendgridApiKey) {
       // Fallback to nodemailer if SendGrid is not configured
       return sendEmailNodemailer(lead, subject, body)

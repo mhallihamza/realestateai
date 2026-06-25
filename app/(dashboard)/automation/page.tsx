@@ -184,19 +184,26 @@ export default function AutomationPage() {
             />
           </label>
           {config.enableEmail ? (
-            <input
-              value={config.emailFrom || ''}
-              onChange={(e) => setConfig({ ...config, emailFrom: e.target.value })}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="support@youragency.com"
-            />
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-gray-700">Reply-To Email</label>
+              <input
+                value={config.emailFrom || ''}
+                onChange={(e) => setConfig({ ...config, emailFrom: e.target.value })}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="you@gmail.com"
+              />
+              <p className="text-xs text-gray-400">Leads will reply directly to this email</p>
+            </div>
           ) : (
-            <input
-              value={config.emailFrom || ''}
-              disabled
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm opacity-50 cursor-not-allowed bg-gray-50"
-              placeholder="support@youragency.com"
-            />
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-gray-400">Reply-To Email</label>
+              <input
+                value={config.emailFrom || ''}
+                disabled
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm opacity-50 cursor-not-allowed bg-gray-50"
+                placeholder="you@gmail.com"
+              />
+            </div>
           )}
         </div>
       </div>
