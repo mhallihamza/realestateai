@@ -6,6 +6,12 @@ const sendgridApiKey = process.env.SENDGRID_API_KEY
 const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'ai@youragency.com'
 const resend = new Resend(process.env.RESEND_API_KEY ?? '')
 
+/**
+ * Case 1 — AI reply to client:
+ *   from: `${workspace.name} <noreply@mypron8n.site>`
+ *   reply_to: `leads@mypron8n.site`
+ *   to: lead.email
+ */
 export async function sendEmail(
   lead: Lead,
   subject: string,
@@ -30,8 +36,8 @@ export async function sendEmail(
       const trackingId = trackingEnabled ? crypto.randomUUID() : undefined
 
       await resend.emails.send({
-        from: `${workspace?.name ?? 'DarLeads'} <noreply@${process.env.RESEND_FROM_DOMAIN}>`,
-        replyTo: config?.emailFrom ?? undefined,
+        from: `${workspace?.name ?? 'DarLeads'} <noreply@mypron8n.site>`,
+        replyTo: 'leads@mypron8n.site',
         to: lead.email,
         subject,
         text: body,
@@ -194,4 +200,41 @@ export async function trackEmailClick(trackingToken: string): Promise<void> {
       value: 20,
     },
   })
+}
+
+/**
+ * Case 2 — Forwarding to agent Gmail:
+ *   from: `DarLeads <leads@mypron8n.site>`
+ *   to: agentConfig.emailFrom
+ *   subject: `[New Lead] ${originalSubject}`
+ *   text: `From: ${clientEmail}\n\n${originalMessage}`
+ */
+export async function sendForwardToAgent(
+  agentEmail: string,
+  clientEmail: string,
+  subject: string,
+  message: string
+): Promise<void> {
+  try {
+    if (process.env.RESEND_API_KEY) {
+      await resend.emails.send({
+        from: `DarLeads <leads@mypron8n.site>`,
+        to: agentEmail,
+        subject: `[New Lead] ${subject}`,
+        text: `From: ${clientEmail}\n\n${message}`,
+      })
+    } else if (sendgridApiKey) {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const sgMail = require('@sendgrid/mail')
+      sgMail.setApiKey(sendgridApiKey)
+      await sgMail.send({
+        to: agentEmail,
+        from: fromEmail,
+        subject: `[New Lead] ${subject}`,
+        text: `From: ${clientEmail}\n\n${message}`,
+      })
+    }
+  } catch (error: any) {
+    console.error('[FORWARD_TO_AGENT_ERROR]', error)
+  }
 }

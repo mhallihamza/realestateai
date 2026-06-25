@@ -19,6 +19,7 @@ model Workspace {
   trialEndsAt DateTime?
 
   // NEW FIELDS
+  inboundEmail           String? @unique
   defaultChannel         String  @default("whatsapp")
   aiReplyDelayEnabled    Boolean @default(true)
   businessHoursStart     String?

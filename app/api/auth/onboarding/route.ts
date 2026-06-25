@@ -32,10 +32,18 @@ export async function POST(req: Request) {
     const slug = `ws-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`
     const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000)
 
+    const agencyNameFinal = agencyName || `${session.user.name || 'My'}'s Agency`
+    const inboundEmail = agencyNameFinal
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+
     const workspace = await prisma.workspace.create({
       data: {
-        name: agencyName || `${session.user.name || 'My'}'s Agency`,
+        name: agencyNameFinal,
         slug,
+        inboundEmail,
         plan: 'pro',
         trialEndsAt,
         webhookSecret: crypto.randomBytes(16).toString('hex'),
