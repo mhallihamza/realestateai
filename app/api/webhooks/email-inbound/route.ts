@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
 
     // Cloudflare Worker sends this format
     const from = payload.from
-    const to = payload.to        // support@mypron8n.site
+    const to = payload.to        
     const subject = payload.subject
     const text = payload.text
 
@@ -97,7 +97,9 @@ export async function POST(req: NextRequest) {
         agentConfig.emailFrom,
         from,
         subject,
-        text || ''
+        text || '',
+        workspace.name,
+        workspace.inboundEmail ?? 'leads'
       )
     }
 

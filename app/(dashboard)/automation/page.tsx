@@ -8,14 +8,18 @@ import { WRITING_TONES } from '@/lib/utils'
 
 export default function AutomationPage() {
   const [config, setConfig] = useState<any>(null)
+  const [workspace, setWorkspace] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    fetch('/api/workspace/agent-config')
-      .then((r) => r.json())
-      .then((d) => setConfig(d.config))
-      .finally(() => setLoading(false))
+    Promise.all([
+      fetch('/api/workspace/agent-config').then(r => r.json()),
+      fetch('/api/workspace').then(r => r.json()),
+    ]).then(([configData, workspaceData]) => {
+      setConfig(configData.config)
+      setWorkspace(workspaceData.workspace)
+    }).finally(() => setLoading(false))
   }, [])
 
   async function save() {
@@ -190,14 +194,14 @@ export default function AutomationPage() {
                 <label className="block text-sm font-medium text-gray-700">Your leads email address</label>
                 <div className="flex gap-2">
                   <input
-                    value="support@mypron8n.site"
+                    value={`${workspace?.inboundEmail ?? 'leads'}@mypron8n.site`}
                     readOnly
                     className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm opacity-50 cursor-not-allowed bg-gray-50"
                   />
                   <button
                     type="button"
                     onClick={() => {
-                      navigator.clipboard.writeText('support@mypron8n.site')
+                      navigator.clipboard.writeText(`${workspace?.inboundEmail ?? 'leads'}@mypron8n.site`)
                       toast.success('Copied to clipboard')
                     }}
                     className="px-3 py-2.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 whitespace-nowrap"
@@ -223,7 +227,7 @@ export default function AutomationPage() {
             <div className="space-y-1.5">
               <label className="block text-sm font-medium text-gray-400">Your leads email address</label>
               <input
-                value="support@mypron8n.site"
+                value={`${workspace?.inboundEmail ?? 'leads'}@mypron8n.site`}
                 disabled
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm opacity-50 cursor-not-allowed bg-gray-50"
               />

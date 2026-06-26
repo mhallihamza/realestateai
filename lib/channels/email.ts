@@ -213,17 +213,56 @@ export async function sendForwardToAgent(
   agentEmail: string,
   clientEmail: string,
   subject: string,
-  message: string
+  message: string,
+  workspaceName: string,
+  inboundEmail: string
 ): Promise<void> {
   try {
     if (process.env.RESEND_API_KEY) {
       console.log("Before send forwardtoagent");
       console.log(agentEmail);
       const result = await resend.emails.send({
-        from: `DarLeads <leads@mypron8n.site>`,
+        from: `${workspaceName} <noreply@mypron8n.site>`,
         to: agentEmail,
+        replyTo: clientEmail,
         subject: `[New Lead] ${subject}`,
-        text: `From: ${clientEmail}\n\n${message}`,
+        text: `New lead message received.\n\nFrom: ${clientEmail}\n\nMessage:\n${message}`,
+        html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9fafb; border-radius: 8px;">
+      <div style="background: #1d4ed8; padding: 16px 24px; border-radius: 8px 8px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 18px;">🏠 New Lead — ${workspaceName}</h1>
+      </div>
+      <div style="background: white; padding: 24px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb;">
+        <p style="margin: 0 0 16px; color: #6b7280; font-size: 14px;">You have a new lead inquiry. The AI agent has already replied automatically.</p>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tr>
+            <td style="padding: 8px 12px; background: #f3f4f6; border-radius: 4px; font-size: 13px; color: #374151; font-weight: 600; width: 30%;">From</td>
+            <td style="padding: 8px 12px; font-size: 13px; color: #111827;">${clientEmail}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 12px; background: #f3f4f6; border-radius: 4px; font-size: 13px; color: #374151; font-weight: 600;">Subject</td>
+            <td style="padding: 8px 12px; font-size: 13px; color: #111827;">${subject}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 12px; background: #f3f4f6; border-radius: 4px; font-size: 13px; color: #374151; font-weight: 600;">Reply To</td>
+            <td style="padding: 8px 12px; font-size: 13px; color: #1d4ed8;">${clientEmail}</td>
+          </tr>
+        </table>
+        <div style="background: #f9fafb; border-left: 4px solid #1d4ed8; padding: 16px; border-radius: 4px; margin-bottom: 20px;">
+          <p style="margin: 0 0 8px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;">Message</p>
+          <p style="margin: 0; font-size: 14px; color: #374151; white-space: pre-wrap;">${message}</p>
+        </div>
+        <p style="margin: 0; font-size: 12px; color: #9ca3af;">
+          This lead was received at ${inboundEmail}@mypron8n.site — 
+          Log in to DarLeads to view the full conversation.
+        </p>
+      </div>
+    </div>
+  `,
+        headers: {
+          'X-Entity-Ref-ID': crypto.randomUUID(),
+        },
+        tags: [{ name: 'category', value: 'lead_forward' }],
       })
       console.log('[FORWARD_RESULT]', JSON.stringify(result))
     } else if (sendgridApiKey) {
