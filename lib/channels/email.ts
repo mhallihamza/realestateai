@@ -23,7 +23,7 @@ export async function sendEmail(
     const [workspace, config] = await Promise.all([
       prisma.workspace.findUnique({
         where: { id: lead.workspaceId },
-        select: { name: true },
+        select: { name: true, inboundEmail: true },
       }),
       prisma.agentConfig.findUnique({
         where: { workspaceId: lead.workspaceId },
@@ -36,8 +36,8 @@ export async function sendEmail(
       const trackingId = trackingEnabled ? crypto.randomUUID() : undefined
 
       await resend.emails.send({
-        from: `${workspace?.name ?? 'DarLeads'} <noreply@mypron8n.site>`,
-        replyTo: 'leads@mypron8n.site',
+        from: `${workspace?.name ?? 'DarLeads'} <${workspace?.inboundEmail ?? 'leads'}@mypron8n.site>`,
+        replyTo: `${workspace?.inboundEmail ?? 'leads'}@mypron8n.site`,
         to: lead.email,
         subject,
         text: body,
