@@ -9,7 +9,7 @@ export default function DashboardSplitView() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
-
+  console.log('yes');
   const toggleAiAgent = async (leadId: string, currentAiStatus: boolean) => {
     if (!selectedLead) return
 
